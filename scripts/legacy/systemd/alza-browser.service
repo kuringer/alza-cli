@@ -1,0 +1,13 @@
+[Unit]
+Description=Alza Chromium session (CDP)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/lib/chromium/chromium --headless=new --disable-gpu --no-first-run --disable-dev-shm-usage --disable-features=Translate,OptimizationHints --password-store=basic --use-mock-keychain --user-data-dir=%h/.config/alza/pw-profile --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 https://www.alza.sk/
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

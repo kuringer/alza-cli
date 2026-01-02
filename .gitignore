@@ -1,0 +1,33 @@
+# Binary
+alza
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Test files
+*.bak
+coverage.out
+coverage.html
+
+# Sensitive files - NEVER commit these
+*.env
+!*.env.example
+auth_token.txt
+credentials.json
+quickbuy.env
+*.pem
+*.key
+
+# Local config that might contain secrets
+config/local/
+.secrets/
+
+# Agent config files (personal setup)
+.pi/
+CLAUDE.md
+AGENTS.md

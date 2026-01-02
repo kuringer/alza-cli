@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodic Alza token refresh
+
+[Timer]
+OnBootSec=2m
+OnUnitActiveSec=30m
+Unit=alza-refresh.service
+
+[Install]
+WantedBy=timers.target

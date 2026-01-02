@@ -1,0 +1,9 @@
+[Unit]
+Description=Refresh Alza auth token (Chrome cookies)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/alza-cli
+ExecStart=%h/alza-cli/alza token refresh
