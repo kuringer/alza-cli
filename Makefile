@@ -1,8 +1,10 @@
 .PHONY: build test lint fmt vet install clean coverage
 
+VERSION ?= dev
+
 # Build the binary
 build:
-	go build -o alza .
+	go build -ldflags "-X github.com/kuringer/alza-cli/client.Version=$(VERSION)" -o alza .
 
 # Run tests
 test:

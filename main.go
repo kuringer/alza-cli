@@ -37,6 +37,15 @@ var CLI struct {
 	Orders    OrdersCmd    `cmd:"" help:"View order history"`
 	Quickbuy  QuickbuyCmd  `cmd:"" help:"Quick order to AlzaBox (WILL CHARGE YOUR CARD!)"`
 	Token     TokenCmd     `cmd:"" help:"Manage auth token"`
+	Version   VersionCmd   `cmd:"" help:"Show version info"`
+}
+
+// VersionCmd shows version information
+type VersionCmd struct{}
+
+func (c *VersionCmd) Run(g *Globals) error {
+	fmt.Printf("alza %s\n", client.Version)
+	return nil
 }
 
 func newClient(g *Globals) (*client.TLSClient, error) {
@@ -1047,11 +1056,17 @@ func main() {
 			Compact: true,
 			Summary: true,
 		}),
+		kong.Vars{"version": client.Version},
 	)
 
 	err := ctx.Run(&CLI.Globals)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
+	}
+
+	// Check for updates (async-cached, won't slow down)
+	if msg := client.CheckForUpdate(); msg != "" {
+		fmt.Fprint(os.Stderr, msg)
 	}
 }
