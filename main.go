@@ -897,6 +897,25 @@ type QuickbuyCmd struct {
 	NoCoupon   bool     `help:"Explicitly proceed without coupon" name:"no-coupon"`
 }
 
+func buildQuickbuyConfig(cmd *QuickbuyCmd, envCfg client.QuickBuyConfig) client.QuickBuyConfig {
+	config := client.QuickBuyConfig{
+		AlzaBoxID:  cmd.AlzaBoxID,
+		DeliveryID: cmd.DeliveryID,
+		PaymentID:  cmd.PaymentID,
+		CardID:     cmd.CardID,
+		IsAlzaPlus: cmd.AlzaPlus,
+		VisitorID:  cmd.VisitorID,
+		DryRun:     cmd.DryRun,
+		QuoteOnly:  cmd.QuoteOnly,
+		PromoCodes: cmd.Coupons,
+	}
+	config = config.WithDefaults(envCfg)
+	if cmd.NoCoupon {
+		config.PromoCodes = []string{}
+	}
+	return config
+}
+
 func (c *QuickbuyCmd) Run(g *Globals) error {
 	// Load env config first (before auth) to validate coupon requirement
 	envCfg, err := client.QuickbuyConfigFromEnvFile("")
@@ -904,18 +923,7 @@ func (c *QuickbuyCmd) Run(g *Globals) error {
 		return err
 	}
 
-	config := client.QuickBuyConfig{
-		AlzaBoxID:  c.AlzaBoxID,
-		DeliveryID: c.DeliveryID,
-		PaymentID:  c.PaymentID,
-		CardID:     c.CardID,
-		IsAlzaPlus: c.AlzaPlus,
-		VisitorID:  c.VisitorID,
-		DryRun:     c.DryRun,
-		QuoteOnly:  c.QuoteOnly,
-		PromoCodes: c.Coupons,
-	}
-	config = config.WithDefaults(envCfg)
+	config := buildQuickbuyConfig(c, envCfg)
 
 	// Coupon is required unless --no-coupon is explicitly set (not for dry-run)
 	if len(config.PromoCodes) == 0 && !c.NoCoupon && !c.DryRun {
