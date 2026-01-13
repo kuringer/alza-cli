@@ -881,7 +881,7 @@ func (c *OrdersCmd) Run(g *Globals) error {
 // === QUICKBUY ===
 
 type QuickbuyCmd struct {
-	ProductID  int      `arg:"" help:"Product ID to order"`
+	ProductIDs []int    `arg:"" name:"product-id" help:"Product ID to order (only 1 supported)"`
 	Quantity   int      `help:"Quantity" default:"1" short:"q"`
 	Yes        bool     `help:"Skip countdown (DANGEROUS!)" short:"y"`
 	DryRun     bool     `help:"Simulate only, don't actually order" name:"dry-run"`
@@ -917,6 +917,15 @@ func buildQuickbuyConfig(cmd *QuickbuyCmd, envCfg client.QuickBuyConfig) client.
 }
 
 func (c *QuickbuyCmd) Run(g *Globals) error {
+	// Validate single product - quickbuy only supports 1 product at a time
+	if len(c.ProductIDs) == 0 {
+		return fmt.Errorf("product ID is required")
+	}
+	if len(c.ProductIDs) > 1 {
+		return fmt.Errorf("quickbuy supports only 1 product at a time\nFor multiple products, run quickbuy separately for each or use cart")
+	}
+	productID := c.ProductIDs[0]
+
 	// Load env config first (before auth) to validate coupon requirement
 	envCfg, err := client.QuickbuyConfigFromEnvFile("")
 	if err != nil {
@@ -951,7 +960,7 @@ func (c *QuickbuyCmd) Run(g *Globals) error {
 		fmt.Println("║  🛒 QUICKBUY - RÝCHLA OBJEDNÁVKA                          ║")
 	}
 	fmt.Println("╠═══════════════════════════════════════════════════════════╣")
-	fmt.Printf("║  Produkt ID: %-45d ║\n", c.ProductID)
+	fmt.Printf("║  Produkt ID: %-45d ║\n", productID)
 	fmt.Printf("║  Množstvo:   %-45d ║\n", c.Quantity)
 	fmt.Printf("║  AlzaBox ID: %-43d ║\n", config.AlzaBoxID)
 	fmt.Printf("║  Delivery ID: %-42d ║\n", config.DeliveryID)
@@ -1021,7 +1030,7 @@ func (c *QuickbuyCmd) Run(g *Globals) error {
 		fmt.Println("⏳ Vytváram objednávku...")
 	}
 
-	result, err := cl.QuickBuy(c.ProductID, c.Quantity, config)
+	result, err := cl.QuickBuy(productID, c.Quantity, config)
 	if err != nil {
 		return fmt.Errorf("quickbuy failed: %w", err)
 	}
