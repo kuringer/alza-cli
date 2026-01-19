@@ -88,6 +88,7 @@ type ProductDetail struct {
 	Parameters          []ProductParameterGroup `json:"parameters,omitempty"`
 	Variants            []ProductVariant        `json:"variants,omitempty"`
 	PromoPrices         []ProductPromoPrice     `json:"promoPrices,omitempty"`
+	ReviewStats         *ReviewStats            `json:"reviewStats,omitempty"`
 }
 
 type ProductParameterGroup struct {

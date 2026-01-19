@@ -31,4 +31,8 @@ const (
 	EndpointFastOrderSave = "/Services/EShopService.svc/FastOrderSave"
 	EndpointFastOrderSend = "/Services/EShopService.svc/FastOrderSend"
 	EndpointPaymentRepeat = "/api/payment/v3/recurrent"
+
+	// Review endpoints (webapi.alza.cz)
+	EndpointReviewStats = "https://webapi.alza.cz/api/catalog/v2/commodities/%d/reviewStats?country=SK&ucik=x&pgrik=x"
+	EndpointReviews     = "https://webapi.alza.cz/api/catalog/v2/commodities/%d/reviews?country=SK&offset=%d&limit=%d"
 )

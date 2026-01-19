@@ -37,7 +37,15 @@ alza [global-flags] <command> [subcommand] [args] [flags]
 ### Produkt
 | Command | Popis | Status |
 |---------|-------|--------|
-| `alza product <id>` | Detail produktu | ✅ |
+| `alza product <id>` | Detail produktu (vrátane ratingu) | ✅ |
+
+### Recenzie
+| Command | Popis | Status |
+|---------|-------|--------|
+| `alza reviews <id>` | Štatistiky + recenzie produktu | ✅ |
+| `alza reviews <id> -n 20` | Viac recenzií | ✅ |
+| `alza reviews <id> --stats` | Len štatistiky (bez recenzií) | ✅ |
+| `alza reviews <id> --offset 10` | Preskočiť prvých N | ✅ |
 
 ### Košík
 | Command | Popis | Status |
@@ -158,6 +166,8 @@ Iný názov môžeš nastaviť cez env `ALZA_FAVORITES_LIST`.
 | User status | `/api/users/{id}/statusSummary` | GET |
 | Search | `webapi.alza.cz/api/users/{id}/search/whisperer/v1/whisper` | GET |
 | Product detail | `/api/router/legacy/catalog/product/{id}?country=SK&electronicContentOnly=False` | GET |
+| Review stats | `webapi.alza.cz/api/catalog/v2/commodities/{id}/reviewStats?country=SK` | GET |
+| Reviews list | `webapi.alza.cz/api/catalog/v2/commodities/{id}/reviews?country=SK` | GET |
 | Add to cart | `/Services/EShopService.svc/OrderCommodity` | POST |
 | Update/Remove cart item | `/Services/EShopService.svc/OrderUpdate?country=SK` | POST |
 | Get cart items | `/api/v1/anonymous/baskets/{id}/checkout/cart/items` | GET |
@@ -206,8 +216,17 @@ alza lists items 44367457
 # Pridať do obľúbených
 alza favorites add 7191542
 
-# Detail produktu
+# Detail produktu (vrátane ratingu)
 alza product 7816725
+
+# Recenzie produktu
+alza reviews 7816725
+
+# Len štatistiky recenzií
+alza reviews 7816725 --stats
+
+# Viac recenzií
+alza reviews 7816725 -n 20
 
 # Debug mode
 alza -d cart show

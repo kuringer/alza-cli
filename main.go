@@ -31,6 +31,7 @@ var CLI struct {
 	Whoami    WhoamiCmd    `cmd:"" help:"Show logged in user info"`
 	Search    SearchCmd    `cmd:"" help:"Search for products"`
 	Product   ProductCmd   `cmd:"" help:"Show product detail"`
+	Reviews   ReviewsCmd   `cmd:"" help:"Show product reviews"`
 	Cart      CartCmd      `cmd:"" help:"Manage shopping cart"`
 	Favorites FavoritesCmd `cmd:"" help:"Manage favorites list"`
 	Lists     ListsCmd     `cmd:"" help:"Manage commodity lists"`
@@ -480,6 +481,23 @@ func (c *ProductCmd) Run(g *Globals) error {
 		fmt.Println(line)
 	}
 
+	// Rating summary
+	if product.ReviewStats != nil && product.ReviewStats.RatingCount > 0 {
+		stars := renderStars(product.ReviewStats.RatingAverage)
+		fmt.Printf("Rating: %s %.1f/5 (%d hodnotení", stars, product.ReviewStats.RatingAverage, product.ReviewStats.RatingCount)
+		if product.ReviewStats.ReviewCount > 0 {
+			fmt.Printf(", %d recenzií", product.ReviewStats.ReviewCount)
+		}
+		fmt.Printf(")\n")
+		if product.ReviewStats.RecommendationRate > 0 {
+			fmt.Printf("  %.0f%% odporúča", product.ReviewStats.RecommendationRate*100)
+			if product.ReviewStats.PurchaseCount != "" {
+				fmt.Printf(" | %s predaných", product.ReviewStats.PurchaseCount)
+			}
+			fmt.Println()
+		}
+	}
+
 	if product.Availability != "" {
 		fmt.Printf("Availability: %s\n", product.Availability)
 	}
@@ -522,6 +540,190 @@ func (c *ProductCmd) Run(g *Globals) error {
 	}
 
 	return nil
+}
+
+// === REVIEWS ===
+
+type ReviewsCmd struct {
+	ProductID int  `arg:"" help:"Product ID"`
+	Limit     int  `help:"Number of reviews to show" default:"10" short:"n"`
+	Offset    int  `help:"Skip first N reviews" default:"0"`
+	Stats     bool `help:"Show only stats, no individual reviews" short:"s"`
+}
+
+func (c *ReviewsCmd) Run(g *Globals) error {
+	cl, err := newClientWithAutoRefresh(g)
+	if err != nil {
+		return err
+	}
+
+	// Always fetch stats
+	stats, err := cl.GetReviewStats(c.ProductID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch review stats: %w", err)
+	}
+
+	if g.Format == "json" {
+		if c.Stats {
+			outputJSON(stats)
+			return nil
+		}
+		// Fetch reviews for JSON output
+		reviews, err := cl.GetReviews(c.ProductID, c.Offset, c.Limit)
+		if err != nil {
+			return err
+		}
+		outputJSON(map[string]interface{}{
+			"stats":   stats,
+			"reviews": reviews,
+		})
+		return nil
+	}
+
+	// Text output - stats header
+	fmt.Printf("Reviews for product %d\n", c.ProductID)
+	fmt.Println(strings.Repeat("=", 50))
+	fmt.Println()
+
+	// Rating summary
+	stars := renderStars(stats.RatingAverage)
+	fmt.Printf("Rating: %s %.1f/5\n", stars, stats.RatingAverage)
+	fmt.Printf("Total ratings: %d | Text reviews: %d\n", stats.RatingCount, stats.ReviewCount)
+	if stats.RecommendationRate > 0 {
+		fmt.Printf("Recommendation: %.0f%%", stats.RecommendationRate*100)
+		if stats.PurchaseCount != "" {
+			fmt.Printf(" | Sold: %s", stats.PurchaseCount)
+		}
+		fmt.Println()
+	}
+
+	// Rating distribution
+	if len(stats.Ratings) > 0 {
+		fmt.Println("\nRating distribution:")
+		// Build a map for quick lookup
+		ratingMap := make(map[int]int)
+		maxCount := 0
+		for _, r := range stats.Ratings {
+			ratingMap[r.Value] = r.Count
+			if r.Count > maxCount {
+				maxCount = r.Count
+			}
+		}
+		// Show from 5 stars down to 1
+		for star := 5; star >= 1; star-- {
+			count := ratingMap[star]
+			barLen := 0
+			if maxCount > 0 {
+				barLen = (count * 30) / maxCount
+			}
+			bar := strings.Repeat("█", barLen) + strings.Repeat("░", 30-barLen)
+			fmt.Printf("  %d★ [%s] %d\n", star, bar, count)
+		}
+	}
+
+	// Complaint/reliability info
+	if stats.Complaint != nil {
+		fmt.Printf("\nReliability: %s (%.2f%%)\n", stats.Complaint.Description, stats.Complaint.Rate*100)
+	}
+
+	if c.Stats {
+		return nil
+	}
+
+	// Fetch and display individual reviews
+	reviews, err := cl.GetReviews(c.ProductID, c.Offset, c.Limit)
+	if err != nil {
+		return err
+	}
+
+	if len(reviews.Reviews) == 0 {
+		fmt.Println("\nNo text reviews available.")
+		return nil
+	}
+
+	fmt.Printf("\nReviews (showing %d-%d of %d):\n", c.Offset+1, c.Offset+len(reviews.Reviews), reviews.TotalCount)
+	fmt.Println(strings.Repeat("-", 50))
+
+	for i, review := range reviews.Reviews {
+		fmt.Println()
+		// Header: rating, name, date
+		stars := renderStars(float64(review.Rating))
+		verified := ""
+		if review.IsVerified {
+			verified = " [Overený nákup]"
+		}
+		translated := ""
+		if review.IsTranslated {
+			translated = " [Preložené]"
+		}
+		fmt.Printf("%d. %s %d/5 - %s%s%s\n", c.Offset+i+1, stars, review.Rating, review.Name, verified, translated)
+
+		// Date
+		if review.ReviewDate != "" {
+			date := review.ReviewDate
+			if len(date) > 10 {
+				date = date[:10] // Just YYYY-MM-DD
+			}
+			fmt.Printf("   %s", date)
+			if review.LikeCount > 0 {
+				fmt.Printf(" | %d likes", review.LikeCount)
+			}
+			fmt.Println()
+		}
+
+		// Positives/Negatives
+		if len(review.Positives) > 0 {
+			fmt.Printf("   + %s\n", strings.Join(review.Positives, ", "))
+		}
+		if len(review.Negatives) > 0 {
+			fmt.Printf("   - %s\n", strings.Join(review.Negatives, ", "))
+		}
+
+		// Description text
+		if review.Description != "" {
+			// Wrap long descriptions
+			desc := review.Description
+			if len(desc) > 200 {
+				desc = desc[:200] + "..."
+			}
+			fmt.Printf("   \"%s\"\n", desc)
+		}
+	}
+
+	// Pagination hint
+	if c.Offset+c.Limit < reviews.TotalCount {
+		fmt.Printf("\n... ďalšie recenzie: alza reviews %d --offset %d\n", c.ProductID, c.Offset+c.Limit)
+	}
+
+	return nil
+}
+
+// renderStars converts a rating (0-5) to star characters
+func renderStars(rating float64) string {
+	// Clamp to valid range
+	if rating < 0 {
+		rating = 0
+	}
+	if rating > 5 {
+		rating = 5
+	}
+
+	full := int(rating)
+	half := rating-float64(full) >= 0.5
+	empty := 5 - full
+	if half {
+		empty--
+	}
+	if empty < 0 {
+		empty = 0
+	}
+
+	result := strings.Repeat("★", full)
+	if half {
+		result += "½"
+	}
+	result += strings.Repeat("☆", empty)
+	return result
 }
 
 // === CART ===

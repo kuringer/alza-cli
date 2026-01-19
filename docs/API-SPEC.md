@@ -309,12 +309,107 @@ Host: www.alza.sk
 ```
 
 ### Product Reviews
-Štatistiky recenzií.
+
+#### Review Stats (súhrnné štatistiky)
+Získa agregované štatistiky recenzií pre produkt.
 
 ```
-GET /api/catalog/v2/commodities/{productId}/reviewStats?country=SK
+GET /api/catalog/v2/commodities/{productId}/reviewStats?country=SK&ucik=x&pgrik=x
 Host: webapi.alza.cz
 ```
+
+**Poznámka:** `ucik` a `pgrik` parametre sú povinné, ale hodnoty môžu byť ľubovoľné.
+
+**Response:**
+```json
+{
+  "ratingAverage": 4.8,
+  "ratingCount": 89,
+  "reviewCount": 24,
+  "recommendationRate": 0.93,
+  "purchaseCountFormatted": "2 000+",
+  "ratings": [
+    {"value": 1, "count": 1},
+    {"value": 2, "count": 0},
+    {"value": 3, "count": 5},
+    {"value": 4, "count": 8},
+    {"value": 5, "count": 75}
+  ],
+  "complaint": {
+    "description": "nízka reklamovanosť",
+    "rate": 0.0009,
+    "tooltip": "Tento produkt je vo svojej kategórii nadpriemerne spoľahlivý.",
+    "type": 1
+  },
+  "name": "Sizeandsymmetry Creatine Creapure 500 g",
+  "image": "https://image.alza.cz/products/SPTsas017/SPTsas017.jpg"
+}
+```
+
+| Pole | Popis |
+|------|-------|
+| `ratingAverage` | Priemerné hodnotenie (1-5) |
+| `ratingCount` | Celkový počet hodnotení (vrátane bez textu) |
+| `reviewCount` | Počet textových recenzií |
+| `recommendationRate` | Percento odporúčaní (0-1) |
+| `purchaseCountFormatted` | Počet predaných kusov |
+| `ratings` | Distribúcia hodnotení po hviezdičkách |
+| `complaint` | Údaje o reklamovanosti produktu |
+
+#### Reviews List (jednotlivé recenzie)
+Získa zoznam textových recenzií s pagináciou.
+
+```
+GET /api/catalog/v2/commodities/{productId}/reviews?country=SK&offset=0&limit=10
+Host: webapi.alza.cz
+```
+
+**Parameters:**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `offset` | int | ✗ | Počet recenzií na preskočenie (default 0) |
+| `limit` | int | ✗ | Max počet recenzií (default 10, max 50) |
+
+**Response:**
+```json
+{
+  "paging": {
+    "size": 24,
+    "limit": 10,
+    "next": {"href": "...?offset=10&limit=10"}
+  },
+  "value": [
+    {
+      "rating": 4,
+      "name": "Anonymný zákazník",
+      "description": "Výborný produkt, odporúčam.",
+      "positives": ["funguje", "dobrá cena"],
+      "negatives": ["rozpustnosť"],
+      "reviewDate": "2025-11-13T12:43:48.697Z",
+      "likeCount": 1,
+      "isTranslated": false,
+      "commodityName": "Sizeandsymmetry Creatine Creapure 500 g",
+      "reviewDetail": "Hodnotené 13. 11. 2025, variant ...",
+      "flagUrl": "https://cdn.alza.cz/images/flags/country/sk.svg",
+      "verifiedPurchaseTag": {
+        "label": "Overený nákup"
+      }
+    }
+  ]
+}
+```
+
+| Pole | Popis |
+|------|-------|
+| `rating` | Hodnotenie 1-5 |
+| `name` | Meno recenzenta |
+| `description` | Text recenzie |
+| `positives` | Zoznam kladov |
+| `negatives` | Zoznam záporov |
+| `reviewDate` | Dátum recenzie (ISO 8601) |
+| `likeCount` | Počet "páči sa mi" |
+| `isTranslated` | Či bola recenzia preložená |
+| `verifiedPurchaseTag` | Prítomné ak je overený nákup |
 
 ### Check Service Region
 Kontrola dostupnosti služieb v regióne.

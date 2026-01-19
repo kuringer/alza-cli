@@ -173,6 +173,11 @@ func (c *TLSClient) GetProduct(productID int) (*ProductDetail, error) {
 		detail.ExpectedStockDate = availability.ExpectedStockDate
 	}
 
+	// Fetch review stats (non-blocking, ignore errors)
+	if reviewStats, err := c.GetReviewStats(productID); err == nil {
+		detail.ReviewStats = reviewStats
+	}
+
 	return &detail, nil
 }
 
