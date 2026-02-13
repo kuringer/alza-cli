@@ -3,7 +3,7 @@ module github.com/kuringer/alza-cli
 go 1.24.1
 
 require (
-	github.com/alecthomas/kong v1.13.0
+	github.com/alecthomas/kong v1.14.0
 	github.com/bogdanfinn/fhttp v0.6.4
 	github.com/bogdanfinn/tls-client v1.12.0
 	golang.org/x/net v0.48.0
