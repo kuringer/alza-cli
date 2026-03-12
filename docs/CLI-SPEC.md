@@ -74,6 +74,12 @@ alza [global-flags] <command> [subcommand] [args] [flags]
 | Command | Popis | Status |
 |---------|-------|--------|
 | `alza orders` | Aktívne + archívne objednávky | ✅ |
+| `alza orders --with-items` | Objednávky aj s položkami | ✅ |
+| `alza orders --query "fólia"` | Hľadanie v archívnej histórii podľa názvu položky | ✅ |
+
+Poznámky:
+- `--with-items` ovplyvňuje text aj JSON output pri bežnom `alza orders`
+- `--query` implicitne vypíše matching položky a v JSON vracia `orders`, `totalCount`, `historyCount`, `query`, `searchesArchiveOnly`
 
 ## 4. Globálne flagy
 

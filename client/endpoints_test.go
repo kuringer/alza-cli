@@ -84,9 +84,9 @@ func TestEndpointFormatStrings(t *testing.T) {
 			wantOK:   true,
 		},
 		{
-			name:     "OrdersArchive with user ID and limit",
+			name:     "OrdersArchive with user ID, offset and limit",
 			endpoint: EndpointOrdersArchive,
-			args:     []interface{}{"user123", 10},
+			args:     []interface{}{"user123", 0, 10},
 			wantOK:   true,
 		},
 		{

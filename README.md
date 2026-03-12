@@ -94,10 +94,20 @@ alza lists items 49098230
 
 # Order history
 alza orders
+alza orders --with-items
+alza orders --query "fólia"
 
 # JSON output
 alza cart show --format=json
+alza orders --with-items --format=json
+alza orders --query "fólia" --format=json
 ```
+
+Notes:
+- `alza orders --query` searches archive history items only
+- `--query` always shows matching item lines - `--with-items` is only for non-query mode
+- non-query JSON includes `items` only with `--with-items`
+- query JSON includes `orders`, `totalCount`, `historyCount`, `query`, `searchesArchiveOnly`
 
 ## QuickBuy (⚠️ Dangerous)
 

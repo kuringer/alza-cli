@@ -64,11 +64,19 @@ type CartItem struct {
 	URL          string `json:"url"`
 }
 
+type OrderItem struct {
+	CommodityID   int     `json:"commodityId"`
+	CommodityName string  `json:"commodityName"`
+	Count         float64 `json:"count"`
+	Status        string  `json:"status"`
+}
+
 type Order struct {
-	ID         string `json:"orderId"`
-	Date       string `json:"orderDate"`
-	Status     string `json:"status"`
-	TotalPrice string `json:"totalPrice"`
+	ID         string      `json:"orderId"`
+	Date       string      `json:"orderDate"`
+	Status     string      `json:"status"`
+	TotalPrice string      `json:"totalPrice"`
+	Items      []OrderItem `json:"items,omitempty"`
 }
 
 type ProductDetail struct {

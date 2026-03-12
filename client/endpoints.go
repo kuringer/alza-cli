@@ -21,7 +21,7 @@ const (
 	EndpointWhisperAnon   = "https://webapi.alza.cz/api/anonymous/search/whisperer/v1/whisper"
 	EndpointWhisperUser   = "https://webapi.alza.cz/api/users/%s/search/whisperer/v1/whisper"
 
-	EndpointOrdersArchive = "/api/users/%s/v1/orders/archive?offset=0&limit=%d&hideCancelledOrders=false"
+	EndpointOrdersArchive = "/api/users/%s/v1/orders/archive?offset=%d&limit=%d&hideCancelledOrders=false"
 	EndpointOrdersActive  = "/api/users/%s/v1/orders/active"
 
 	EndpointProductDetail           = "/api/router/legacy/catalog/product/%d?country=SK&electronicContentOnly=False"

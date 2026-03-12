@@ -11,10 +11,11 @@ type ordersArchiveResponse struct {
 		Size int `json:"size"`
 	} `json:"paging"`
 	Value []struct {
-		OrderID    string `json:"orderId"`
-		Created    string `json:"created"`
-		State      string `json:"state"`
-		TotalPrice string `json:"totalPrice"`
+		OrderID    string      `json:"orderId"`
+		Created    string      `json:"created"`
+		State      string      `json:"state"`
+		TotalPrice string      `json:"totalPrice"`
+		Items      []OrderItem `json:"items"`
 	} `json:"value"`
 }
 
@@ -57,7 +58,7 @@ func (c *TLSClient) GetOrders(limit int) ([]Order, int, error) {
 		archiveLimit = 1
 	}
 
-	archiveOrders, archiveTotal, err := c.getArchiveOrders(archiveLimit)
+	archiveOrders, archiveTotal, err := c.getArchiveOrdersPage(0, archiveLimit)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -75,8 +76,17 @@ func (c *TLSClient) GetOrders(limit int) ([]Order, int, error) {
 	return orders, total, nil
 }
 
-func (c *TLSClient) getArchiveOrders(limit int) ([]Order, int, error) {
-	endpoint := fmt.Sprintf(EndpointOrdersArchive, c.userID, limit)
+func (c *TLSClient) GetArchiveOrdersPage(offset, limit int) ([]Order, int, error) {
+	if c.userID == "" {
+		if _, err := c.GetUserStatus(); err != nil {
+			return nil, 0, err
+		}
+	}
+	return c.getArchiveOrdersPage(offset, limit)
+}
+
+func (c *TLSClient) getArchiveOrdersPage(offset, limit int) ([]Order, int, error) {
+	endpoint := fmt.Sprintf(EndpointOrdersArchive, c.userID, offset, limit)
 	data, err := c.Get(endpoint)
 	if err != nil {
 		return nil, 0, err
@@ -94,6 +104,7 @@ func (c *TLSClient) getArchiveOrders(limit int) ([]Order, int, error) {
 			Date:       formatOrderDate(o.Created),
 			Status:     o.State,
 			TotalPrice: o.TotalPrice,
+			Items:      o.Items,
 		})
 	}
 

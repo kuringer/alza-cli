@@ -135,7 +135,15 @@ func TestOrderJSON(t *testing.T) {
 		"orderId": "ORD123",
 		"orderDate": "2024-01-15",
 		"status": "delivered",
-		"totalPrice": "299,99 €"
+		"totalPrice": "299,99 €",
+		"items": [
+			{
+				"commodityId": 6315196,
+				"commodityName": "Potravinová fólia VIPOR Fresh'n'Roll s rezačkou 30 cm × 100 m",
+				"count": 1.0000,
+				"status": "Vybavené"
+			}
+		]
 	}`
 
 	var order Order
@@ -148,6 +156,15 @@ func TestOrderJSON(t *testing.T) {
 	}
 	if order.Status != "delivered" {
 		t.Errorf("Status = %q, want delivered", order.Status)
+	}
+	if len(order.Items) != 1 {
+		t.Fatalf("Items len = %d, want 1", len(order.Items))
+	}
+	if order.Items[0].CommodityID != 6315196 {
+		t.Errorf("first item CommodityID = %d, want 6315196", order.Items[0].CommodityID)
+	}
+	if order.Items[0].Count != 1 {
+		t.Errorf("first item Count = %v, want 1", order.Items[0].Count)
 	}
 }
 
