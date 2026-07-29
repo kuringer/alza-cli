@@ -442,3 +442,71 @@ func TestQuickBuyDryRun(t *testing.T) {
 		t.Errorf("Message = %q, expected to contain 'DRY RUN'", result.Message)
 	}
 }
+
+func TestMergeFastOrderData(t *testing.T) {
+	options := map[string]interface{}{
+		"AlzaBoxId":  1009905,
+		"DeliveryId": 2680,
+		"Keep":       "untouched",
+	}
+	resp := []byte(`{"d":{"Data":{"AlzaBoxId":null,"DeliveryId":2681,"NewField":"x","TotalPriceDec":20.9}}}`)
+	mergeFastOrderData(options, resp)
+
+	if options["AlzaBoxId"] != nil {
+		t.Errorf("null must overwrite like $.extend, got %v", options["AlzaBoxId"])
+	}
+	if options["DeliveryId"] != float64(2681) {
+		t.Errorf("DeliveryId not merged: %v", options["DeliveryId"])
+	}
+	if options["NewField"] != "x" || options["TotalPriceDec"] != 20.9 {
+		t.Errorf("new fields not merged: %v", options)
+	}
+	if options["Keep"] != "untouched" {
+		t.Errorf("unrelated field modified: %v", options["Keep"])
+	}
+}
+
+func TestMergeFastOrderDataMalformed(t *testing.T) {
+	options := map[string]interface{}{"AlzaBoxId": 1}
+	mergeFastOrderData(options, []byte(`not-json`))
+	if options["AlzaBoxId"] != 1 {
+		t.Errorf("malformed response must not modify options")
+	}
+}
+
+func TestExtractConsents(t *testing.T) {
+	// Dialog HTML arrives JSON-escaped inside response strings; json.Marshal
+	// of this Go string reproduces that (incl. \u003c for < when escaped).
+	dialog := `<div><input type="checkbox" class="chb js-basket-consent-checkbox" value="42" data-isrequired="True">` +
+		`<input class='js-basket-consent-checkbox' value = '43'>` +
+		`<input class="js-basket-consent-checkbox" data-isrequired="1" value="44">` +
+		`<input class="js-basket-consent-checkbox" value="42" data-isrequired="true"></div>`
+	resp, _ := json.Marshal(map[string]interface{}{
+		"d": map[string]interface{}{"Dialog": dialog, "Other": []interface{}{"no consents here"}},
+	})
+
+	got := extractConsents(resp)
+	want := map[string]bool{"42": true, "43": false, "44": true}
+	if len(got) != len(want) {
+		t.Fatalf("expected %d consents (deduplicated), got %d: %v", len(want), len(got), got)
+	}
+	for _, c := range got {
+		v, ok := want[c.ConsentID]
+		if !ok {
+			t.Errorf("unexpected consent %q", c.ConsentID)
+			continue
+		}
+		if c.Value != v {
+			t.Errorf("consent %q: got value %v want %v", c.ConsentID, c.Value, v)
+		}
+	}
+}
+
+func TestExtractConsentsNone(t *testing.T) {
+	if got := extractConsents([]byte(`{"d":{"Dialog":"<input value=\"1\">"}}`)); len(got) != 0 {
+		t.Errorf("expected no consents, got %v", got)
+	}
+	if got := extractConsents([]byte(`broken`)); got != nil {
+		t.Errorf("malformed response must return nil, got %v", got)
+	}
+}

@@ -28,6 +28,7 @@ const (
 	EndpointProductAvailabilityUser = "/api/productAvailability/v1/users/%s/products/%d?country=SK"
 	EndpointProductAvailabilityAnon = "/api/productAvailability/v1/anonymous/products/%d?country=SK"
 
+	EndpointFastOrderGetDialog = "/Services/EShopService.svc/FastOrderGetDialog"
 	EndpointFastOrderSave = "/Services/EShopService.svc/FastOrderSave"
 	EndpointFastOrderSend = "/Services/EShopService.svc/FastOrderSend"
 	EndpointPaymentRepeat = "/api/payment/v3/recurrent"

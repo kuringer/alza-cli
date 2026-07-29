@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-07-29
+
+### Fixed
+- `alza quickbuy` failing with HTTP 500 on FastOrderSend: the flow now calls
+  `FastOrderGetDialog` first to initialize the fast-order session (matching the
+  current web client), merges server-returned `Data` into the order options
+  after each step, and submits `BasketConsents` parsed from the dialog
+  (required consents accepted, optional ones declined)
+
+### Changed
+- Real orders now fail closed when the fast-order initialization step fails;
+  `--quote` remains tolerant
+
 ## [0.5.0] - 2026-03-12
 
 ### Added

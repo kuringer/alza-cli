@@ -3,6 +3,7 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -65,6 +66,83 @@ type fastOrderOptions struct {
 
 type fastOrderRequest struct {
 	Options fastOrderOptions `json:"options"`
+}
+
+type fastOrderConsent struct {
+	ConsentID string `json:"consentId"`
+	Value     bool   `json:"value"`
+}
+
+// optionsToMap converts the static options struct to a map so that fields
+// returned by the server (Data) can be merged in, mirroring the web client's
+// `$.extend(config, response.Data)` behaviour.
+func optionsToMap(o fastOrderOptions) (map[string]interface{}, error) {
+	b, err := json.Marshal(o)
+	if err != nil {
+		return nil, err
+	}
+	m := map[string]interface{}{}
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// mergeFastOrderData merges d.Data from a FastOrder response into options.
+// Like jQuery's shallow $.extend it copies nulls too; the caller re-asserts
+// its own delivery/payment fields after the merge (as the web client does).
+func mergeFastOrderData(options map[string]interface{}, resp []byte) {
+	var parsed struct {
+		D struct {
+			Data map[string]interface{} `json:"Data"`
+		} `json:"d"`
+	}
+	if err := json.Unmarshal(resp, &parsed); err != nil {
+		return
+	}
+	for k, v := range parsed.D.Data {
+		options[k] = v
+	}
+}
+
+var consentInputRe = regexp.MustCompile(`<input[^>]*js-basket-consent-checkbox[^>]*>`)
+var consentValueRe = regexp.MustCompile(`(?i)\bvalue\s*=\s*["']([^"']+)["']`)
+var consentRequiredRe = regexp.MustCompile(`(?i)\bdata-isrequired\s*=\s*["']?\s*(true|1)`)
+
+// extractConsents scans every string in the response JSON for basket consent
+// checkboxes rendered in the fast-order dialog HTML. Required consents are
+// sent as accepted, optional ones (e.g. marketing) as declined.
+func extractConsents(resp []byte) []fastOrderConsent {
+	var root interface{}
+	if err := json.Unmarshal(resp, &root); err != nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	out := []fastOrderConsent{}
+	var walk func(v interface{})
+	walk = func(v interface{}) {
+		switch t := v.(type) {
+		case string:
+			for _, tag := range consentInputRe.FindAllString(t, -1) {
+				vm := consentValueRe.FindStringSubmatch(tag)
+				if vm == nil || seen[vm[1]] {
+					continue
+				}
+				seen[vm[1]] = true
+				out = append(out, fastOrderConsent{ConsentID: vm[1], Value: consentRequiredRe.MatchString(tag)})
+			}
+		case map[string]interface{}:
+			for _, vv := range t {
+				walk(vv)
+			}
+		case []interface{}:
+			for _, vv := range t {
+				walk(vv)
+			}
+		}
+	}
+	walk(root)
+	return out
 }
 
 type paymentBrowserInfo struct {
@@ -185,7 +263,72 @@ func (c *TLSClient) QuickBuy(productID int, quantity int, config QuickBuyConfig)
 		TotalPriceDec:             0,
 	}
 
-	bodyJSON, err := json.Marshal(fastOrderRequest{Options: options})
+	optsMap, err := optionsToMap(options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build request: %w", err)
+	}
+
+	// reassert re-applies the caller's cart and delivery/payment choice after
+	// server Data merges - the web equivalent is the user's dialog selection
+	// being written back into config before save/send.
+	reassert := func() {
+		optsMap["Items"] = options.Items
+		optsMap["AlzaBoxId"] = options.AlzaBoxID
+		optsMap["DeliveryId"] = options.DeliveryID
+		optsMap["PaymentId"] = options.PaymentID
+		if options.PreferredCard != "" {
+			optsMap["PrefferedCard"] = options.PreferredCard
+		}
+		optsMap["PromoCodes"] = options.PromoCodes
+	}
+
+	// Step 0: FastOrderGetDialog - initializes the fast-order session server-side
+	// and returns Data (and consent checkboxes) that the web merges into config.
+	if c.debug {
+		fmt.Println("[DEBUG] Step 0: FastOrderGetDialog")
+	}
+	var consents []fastOrderConsent
+	getBody, err := json.Marshal(map[string]interface{}{"options": optsMap, "isInitial": true})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build request: %w", err)
+	}
+	getResp, err := c.Post(EndpointFastOrderGetDialog, string(getBody))
+	if err != nil {
+		// Quote never places an order, so a broken init step is tolerable there;
+		// for a real order fail closed rather than send with uninitialized state.
+		if !config.QuoteOnly {
+			return nil, fmt.Errorf("FastOrderGetDialog failed: %w", err)
+		}
+		if c.debug {
+			fmt.Printf("[DEBUG] FastOrderGetDialog failed (quote-only, continuing): %v\n", err)
+		}
+	} else {
+		var getResult struct {
+			D struct {
+				ErrorMessage string  `json:"ErrorMessage"`
+				ErrorLevel   float64 `json:"ErrorLevel"`
+			} `json:"d"`
+		}
+		if err := json.Unmarshal(getResp, &getResult); err != nil {
+			if !config.QuoteOnly {
+				return nil, fmt.Errorf("failed to parse FastOrderGetDialog response: %w", err)
+			}
+		} else if getResult.D.ErrorMessage != "" || (getResult.D.ErrorLevel != 0 && getResult.D.ErrorLevel != 100) {
+			if !config.QuoteOnly {
+				return nil, fmt.Errorf("FastOrderGetDialog error (level %.0f): %s", getResult.D.ErrorLevel, getResult.D.ErrorMessage)
+			}
+			if c.debug {
+				fmt.Printf("[DEBUG] FastOrderGetDialog error (quote-only, continuing): %s\n", getResult.D.ErrorMessage)
+			}
+		} else {
+			mergeFastOrderData(optsMap, getResp)
+			consents = extractConsents(getResp)
+			reassert()
+		}
+	}
+
+	optsMap["IsLoggedIn"] = true
+	bodyJSON, err := json.Marshal(map[string]interface{}{"options": optsMap})
 	if err != nil {
 		return nil, fmt.Errorf("failed to build request: %w", err)
 	}
@@ -237,10 +380,19 @@ func (c *TLSClient) QuickBuy(productID int, quantity int, config QuickBuyConfig)
 		}, nil
 	}
 
-	// Update options with calculated price
-	options.TotalPriceDec = totalPrice
-	options.IsAddressRequired = true
-	bodyJSON, _ = json.Marshal(fastOrderRequest{Options: options})
+	// Merge server Data from save (web does $.extend(config, Data)), then
+	// update options with calculated price and consents.
+	mergeFastOrderData(optsMap, saveResp)
+	if extra := extractConsents(saveResp); len(extra) > 0 {
+		consents = extra
+	}
+	reassert()
+	optsMap["TotalPriceDec"] = totalPrice
+	optsMap["IsAddressRequired"] = true
+	if len(consents) > 0 {
+		optsMap["BasketConsents"] = consents
+	}
+	bodyJSON, _ = json.Marshal(map[string]interface{}{"options": optsMap})
 
 	// Step 2: FastOrderSend
 	if c.debug {
