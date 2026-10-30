@@ -32,6 +32,7 @@ var CLI struct {
 	Favorites FavoritesCmd `cmd:"" help:"Manage favorites list"`
 	Lists     ListsCmd     `cmd:"" help:"Manage commodity lists"`
 	Orders    OrdersCmd    `cmd:"" help:"View order history"`
+	Deals     DealsCmd     `cmd:"" help:"Is a discount real? Price history + Heureka market check"`
 	Quickbuy  QuickbuyCmd  `cmd:"" help:"Quick order to AlzaBox (WILL CHARGE YOUR CARD!)"`
 	Token     TokenCmd     `cmd:"" help:"Manage auth token"`
 	Version   VersionCmd   `cmd:"" help:"Show version info"`

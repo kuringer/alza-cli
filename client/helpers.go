@@ -23,6 +23,11 @@ func extractProductID(rawURL string) int {
 	return id
 }
 
+// ParsePrice parses an Alza price string like "1 139,90 €" (0 when empty or invalid).
+func ParsePrice(raw string) float64 {
+	return parsePrice(raw)
+}
+
 func parsePrice(raw string) float64 {
 	if raw == "" {
 		return 0

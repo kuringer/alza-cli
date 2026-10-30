@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -16,11 +17,7 @@ func TestPickPrice(t *testing.T) {
 			data: productDetailData{
 				Price: "old",
 				PriceInfoV3: &productPriceInfoV3{
-					MainPriceTag: struct {
-						PrimaryPrice           string  `json:"primaryPrice"`
-						PrimaryPriceNoCurrency float64 `json:"primaryPriceNoCurrency"`
-						SecondaryPrice         string  `json:"secondaryPrice"`
-					}{
+					MainPriceTag: productMainPriceTag{
 						PrimaryPrice: "1299,99 €",
 					},
 				},
@@ -49,11 +46,7 @@ func TestPickPrice(t *testing.T) {
 			data: productDetailData{
 				Price: "fallback",
 				PriceInfoV3: &productPriceInfoV3{
-					MainPriceTag: struct {
-						PrimaryPrice           string  `json:"primaryPrice"`
-						PrimaryPriceNoCurrency float64 `json:"primaryPriceNoCurrency"`
-						SecondaryPrice         string  `json:"secondaryPrice"`
-					}{
+					MainPriceTag: productMainPriceTag{
 						PrimaryPrice: "",
 					},
 				},
@@ -85,11 +78,7 @@ func TestPickPriceWithoutVat(t *testing.T) {
 			name: "from PriceInfoV3",
 			data: productDetailData{
 				PriceInfoV3: &productPriceInfoV3{
-					MainPriceTag: struct {
-						PrimaryPrice           string  `json:"primaryPrice"`
-						PrimaryPriceNoCurrency float64 `json:"primaryPriceNoCurrency"`
-						SecondaryPrice         string  `json:"secondaryPrice"`
-					}{
+					MainPriceTag: productMainPriceTag{
 						SecondaryPrice: "1073,55 €",
 					},
 				},
@@ -134,11 +123,7 @@ func TestPickPriceNoCurrency(t *testing.T) {
 			data: productDetailData{
 				GaPrice: 100,
 				PriceInfoV3: &productPriceInfoV3{
-					MainPriceTag: struct {
-						PrimaryPrice           string  `json:"primaryPrice"`
-						PrimaryPriceNoCurrency float64 `json:"primaryPriceNoCurrency"`
-						SecondaryPrice         string  `json:"secondaryPrice"`
-					}{
+					MainPriceTag: productMainPriceTag{
 						PrimaryPriceNoCurrency: 1299.99,
 					},
 				},
@@ -521,5 +506,32 @@ func TestExtractDescriptionFromHTML(t *testing.T) {
 				t.Errorf("extractDescriptionFromHTML() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestPickComparePriceAndHeader(t *testing.T) {
+	raw := `{"name":"Example Printer","catalog_number":" ABC123XY ",
+		"priceInfoV2":{"priceWithVat":"91,90 €","comparePrice":"139,90 €","headerText":"SALE -34 %"},
+		"priceInfoV3":{"mainPriceTag":{"primaryPrice":"91,90 €","comparePrice":null,"headerText":null}}}`
+	var data productDetailData
+	if err := json.Unmarshal([]byte(raw), &data); err != nil {
+		t.Fatal(err)
+	}
+	if got := pickComparePrice(data); got != "139,90 €" {
+		t.Errorf("comparePrice = %q", got)
+	}
+	if got := pickPriceHeader(data); got != "SALE -34 %" {
+		t.Errorf("header = %q", got)
+	}
+	if got := parsePrice(pickComparePrice(data)); got != 139.90 {
+		t.Errorf("parsed = %v", got)
+	}
+	if strings.TrimSpace(data.CatalogNumber) != "ABC123XY" {
+		t.Errorf("catalog = %q", data.CatalogNumber)
+	}
+
+	data.PriceInfoV3.MainPriceTag.ComparePrice = "149,90 €"
+	if got := pickComparePrice(data); got != "149,90 €" {
+		t.Errorf("v3 comparePrice = %q", got)
 	}
 }

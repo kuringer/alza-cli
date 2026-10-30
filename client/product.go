@@ -15,6 +15,7 @@ type productDetailResponse struct {
 
 type productDetailData struct {
 	Name                      string                  `json:"name"`
+	CatalogNumber             string                  `json:"catalog_number"`
 	Price                     string                  `json:"price"`
 	GaPrice                   float64                 `json:"gaPrice"`
 	SalePercentage            *int                    `json:"salePercentage"`
@@ -33,16 +34,22 @@ type productPriceInfoV2 struct {
 	PriceWithoutVat  string              `json:"priceWithoutVat"`
 	PriceNoCurrency  float64             `json:"priceNoCurrency"`
 	UnitPriceWithVat string              `json:"unitPriceWithVat"`
+	ComparePrice     string              `json:"comparePrice"`
+	HeaderText       string              `json:"headerText"`
 	PromoPrices      []productPromoPrice `json:"promoPrices"`
 }
 
 type productPriceInfoV3 struct {
 	PromoPrices  []productPromoPrice `json:"promoPrices"`
-	MainPriceTag struct {
-		PrimaryPrice           string  `json:"primaryPrice"`
-		PrimaryPriceNoCurrency float64 `json:"primaryPriceNoCurrency"`
-		SecondaryPrice         string  `json:"secondaryPrice"`
-	} `json:"mainPriceTag"`
+	MainPriceTag productMainPriceTag `json:"mainPriceTag"`
+}
+
+type productMainPriceTag struct {
+	PrimaryPrice           string  `json:"primaryPrice"`
+	PrimaryPriceNoCurrency float64 `json:"primaryPriceNoCurrency"`
+	SecondaryPrice         string  `json:"secondaryPrice"`
+	ComparePrice           string  `json:"comparePrice"`
+	HeaderText             string  `json:"headerText"`
 }
 
 type productPromoPrice struct {
@@ -152,6 +159,9 @@ func (c *TLSClient) GetProduct(productID int) (*ProductDetail, error) {
 		PriceWithoutVat:     pickPriceWithoutVat(resp.Data),
 		PriceNoCurrency:     pickPriceNoCurrency(resp.Data),
 		DiscountPercent:     resp.Data.SalePercentage,
+		ComparePrice:        pickComparePrice(resp.Data),
+		PriceHeader:         pickPriceHeader(resp.Data),
+		CatalogNumber:       strings.TrimSpace(resp.Data.CatalogNumber),
 		CashBackPriceLabel:  resp.Data.CashBackPriceLabel,
 		CashBackPrice:       resp.Data.CashBackPrice,
 		DiscountDescription: resp.Data.DescriptionBeforeDiscount,
@@ -159,6 +169,8 @@ func (c *TLSClient) GetProduct(productID int) (*ProductDetail, error) {
 		Variants:            mapProductVariants(resp.Data.ProductVariantsInfo),
 		PromoPrices:         pickPromoPrices(resp.Data),
 	}
+
+	detail.ComparePriceNoCurrency = parsePrice(detail.ComparePrice)
 
 	if resp.Data.DescPageURL != "" {
 		descURL := normalizeExternalURL(resp.Data.DescPageURL)
@@ -214,6 +226,27 @@ func pickPrice(data productDetailData) string {
 		return data.PriceInfoV2.PriceWithVat
 	}
 	return data.Price
+}
+
+// pickComparePrice returns the crossed-out "original" price Alza shows next to a discount.
+func pickComparePrice(data productDetailData) string {
+	if data.PriceInfoV3 != nil && data.PriceInfoV3.MainPriceTag.ComparePrice != "" {
+		return data.PriceInfoV3.MainPriceTag.ComparePrice
+	}
+	if data.PriceInfoV2 != nil {
+		return data.PriceInfoV2.ComparePrice
+	}
+	return ""
+}
+
+func pickPriceHeader(data productDetailData) string {
+	if data.PriceInfoV3 != nil && data.PriceInfoV3.MainPriceTag.HeaderText != "" {
+		return data.PriceInfoV3.MainPriceTag.HeaderText
+	}
+	if data.PriceInfoV2 != nil {
+		return data.PriceInfoV2.HeaderText
+	}
+	return ""
 }
 
 func pickPriceWithoutVat(data productDetailData) string {

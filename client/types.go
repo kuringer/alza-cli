@@ -43,10 +43,14 @@ type CommodityList struct {
 }
 
 type ListItem struct {
-	NavigationURL string `json:"navigationUrl"`
-	Count         int    `json:"count"`
-	Name          string `json:"-"`
-	Price         string `json:"-"`
+	ID              int     `json:"id,omitempty"`
+	NavigationURL   string  `json:"navigationUrl"`
+	Count           int     `json:"count"`
+	Name            string  `json:"name,omitempty"`
+	Price           string  `json:"price,omitempty"`
+	PriceNoCurrency float64 `json:"priceNoCurrency,omitempty"`
+	ComparePrice    string  `json:"comparePrice,omitempty"`
+	CatalogNumber   string  `json:"catalogNumber,omitempty"`
 }
 
 type AddToListResponse struct {
@@ -80,23 +84,27 @@ type Order struct {
 }
 
 type ProductDetail struct {
-	ID                  int                     `json:"id"`
-	Name                string                  `json:"name"`
-	Price               string                  `json:"price"`
-	PriceWithoutVat     string                  `json:"priceWithoutVat,omitempty"`
-	PriceNoCurrency     float64                 `json:"priceNoCurrency,omitempty"`
-	DiscountPercent     *int                    `json:"discountPercent,omitempty"`
-	CashBackPriceLabel  string                  `json:"cashBackPriceLabel,omitempty"`
-	CashBackPrice       string                  `json:"cashBackPrice,omitempty"`
-	DiscountDescription string                  `json:"discountDescription,omitempty"`
-	Availability        string                  `json:"availability,omitempty"`
-	AvailabilityDetail  string                  `json:"availabilityDetail,omitempty"`
-	ExpectedStockDate   string                  `json:"expectedStockDate,omitempty"`
-	Description         string                  `json:"description,omitempty"`
-	Parameters          []ProductParameterGroup `json:"parameters,omitempty"`
-	Variants            []ProductVariant        `json:"variants,omitempty"`
-	PromoPrices         []ProductPromoPrice     `json:"promoPrices,omitempty"`
-	ReviewStats         *ReviewStats            `json:"reviewStats,omitempty"`
+	ID                     int                     `json:"id"`
+	Name                   string                  `json:"name"`
+	Price                  string                  `json:"price"`
+	PriceWithoutVat        string                  `json:"priceWithoutVat,omitempty"`
+	PriceNoCurrency        float64                 `json:"priceNoCurrency,omitempty"`
+	DiscountPercent        *int                    `json:"discountPercent,omitempty"`
+	ComparePrice           string                  `json:"comparePrice,omitempty"`
+	ComparePriceNoCurrency float64                 `json:"comparePriceNoCurrency,omitempty"`
+	PriceHeader            string                  `json:"priceHeader,omitempty"`
+	CatalogNumber          string                  `json:"catalogNumber,omitempty"`
+	CashBackPriceLabel     string                  `json:"cashBackPriceLabel,omitempty"`
+	CashBackPrice          string                  `json:"cashBackPrice,omitempty"`
+	DiscountDescription    string                  `json:"discountDescription,omitempty"`
+	Availability           string                  `json:"availability,omitempty"`
+	AvailabilityDetail     string                  `json:"availabilityDetail,omitempty"`
+	ExpectedStockDate      string                  `json:"expectedStockDate,omitempty"`
+	Description            string                  `json:"description,omitempty"`
+	Parameters             []ProductParameterGroup `json:"parameters,omitempty"`
+	Variants               []ProductVariant        `json:"variants,omitempty"`
+	PromoPrices            []ProductPromoPrice     `json:"promoPrices,omitempty"`
+	ReviewStats            *ReviewStats            `json:"reviewStats,omitempty"`
 }
 
 type ProductParameterGroup struct {

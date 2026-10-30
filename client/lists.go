@@ -18,10 +18,15 @@ type ListItemsResponse struct {
 		Name      string `json:"name"`
 		ItemCount int    `json:"itemCount"`
 		Items     []struct {
+			ID            int    `json:"id"`
+			Name          string `json:"name"`
+			CatalogNumber string `json:"catalog_number"`
 			NavigationURL string `json:"navigationUrl"`
 			Count         int    `json:"count"`
 			PriceInfoV2   struct {
-				PriceWithVat string `json:"priceWithVat"`
+				PriceWithVat    string  `json:"priceWithVat"`
+				PriceNoCurrency float64 `json:"priceNoCurrency"`
+				ComparePrice    *string `json:"comparePrice"`
 			} `json:"priceInfoV2"`
 		} `json:"items"`
 	} `json:"data"`
@@ -63,11 +68,23 @@ func (c *TLSClient) GetListItems(listID int) ([]ListItem, error) {
 
 	var items []ListItem
 	for _, item := range resp.Data[0].Items {
-		items = append(items, ListItem{
-			NavigationURL: item.NavigationURL,
-			Count:         item.Count,
-			Price:         item.PriceInfoV2.PriceWithVat,
-		})
+		id := item.ID
+		if id == 0 {
+			id = extractProductID(item.NavigationURL)
+		}
+		li := ListItem{
+			ID:              id,
+			NavigationURL:   item.NavigationURL,
+			Count:           item.Count,
+			Name:            item.Name,
+			Price:           item.PriceInfoV2.PriceWithVat,
+			PriceNoCurrency: item.PriceInfoV2.PriceNoCurrency,
+			CatalogNumber:   item.CatalogNumber,
+		}
+		if item.PriceInfoV2.ComparePrice != nil {
+			li.ComparePrice = *item.PriceInfoV2.ComparePrice
+		}
+		items = append(items, li)
 	}
 	return items, nil
 }
