@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -114,9 +115,35 @@ func TestListingPageRetriesChallenge(t *testing.T) {
 	}
 }
 
+func TestIsAlzaSKURL(t *testing.T) {
+	for raw, want := range map[string]bool{
+		"https://www.alza.sk/black-friday": true,
+		"https://alza.sk/black-friday":     true,
+		"https://WWW.ALZA.SK/x":            true,
+		"https://notalza.sk/x":             false,
+		"http://www.alza.sk/x":             false,
+		"https://www.alza.cz/x":            false,
+	} {
+		u, err := url.Parse(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := isAlzaSKURL(u); got != want {
+			t.Errorf("%s: got %v, want %v", raw, got, want)
+		}
+	}
+}
+
 func TestOpenListingRejectsForeignHost(t *testing.T) {
 	c := &ListingClient{}
-	for _, u := range []string{"https://example.com/black-friday", "not a url"} {
+	for _, u := range []string{
+		"https://example.com/black-friday",
+		"not a url",
+		"https://notalza.sk/black-friday",
+		"https://www.notalza.sk/black-friday",
+		"https://alza.sk.example.com/black-friday",
+		"http://www.alza.sk/black-friday",
+	} {
 		if _, err := c.OpenListing(u); err == nil || !strings.Contains(err.Error(), "listing URL") {
 			t.Errorf("%q: err = %v", u, err)
 		}

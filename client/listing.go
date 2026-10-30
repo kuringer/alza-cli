@@ -17,9 +17,6 @@ import (
 	xhtml "golang.org/x/net/html"
 )
 
-// DefaultListingURL is the listing `alza deals browse` reads by default.
-const DefaultListingURL = BaseURL + "/black-friday"
-
 // ListingPageSize is how many product boxes one listing page returns.
 const ListingPageSize = 24
 
@@ -159,8 +156,8 @@ func (c *ListingClient) OpenListing(pageURL string) (*Listing, error) {
 	if err != nil || u.Host == "" {
 		return nil, fmt.Errorf("invalid listing URL %q", pageURL)
 	}
-	if !strings.HasSuffix(u.Hostname(), "alza.sk") {
-		return nil, fmt.Errorf("listing URL must be on alza.sk: %q", pageURL)
+	if !isAlzaSKURL(u) {
+		return nil, fmt.Errorf("listing URL must be https on alza.sk: %q", pageURL)
 	}
 	u.Fragment = ""
 	body, err := c.do("GET", u.String(), "", true)
@@ -173,6 +170,12 @@ func (c *ListingClient) OpenListing(pageURL string) (*Listing, error) {
 	}
 	l.URL = u.String()
 	return l, nil
+}
+
+// isAlzaSKURL: https and host alza.sk or a subdomain of it.
+func isAlzaSKURL(u *url.URL) bool {
+	host := strings.ToLower(u.Hostname())
+	return u.Scheme == "https" && (host == "alza.sk" || strings.HasSuffix(host, ".alza.sk"))
 }
 
 type pageDataJSON struct {
@@ -254,7 +257,6 @@ type filterResponse struct {
 	D *struct {
 		Boxes string `json:"Boxes"`
 		Count int    `json:"Count"`
-		Page  int    `json:"Page"`
 	} `json:"d"`
 }
 
