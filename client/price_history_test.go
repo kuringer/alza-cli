@@ -3,6 +3,7 @@ package client
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -133,6 +134,9 @@ func TestHistoryStatsFor(t *testing.T) {
 
 // Regression: parallel writers must not store the same product twice a day.
 func TestAppendPriceRecordsConcurrent(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no file lock on windows (filelock_other.go)")
+	}
 	path := filepath.Join(t.TempDir(), "h.jsonl")
 	rec := []PriceRecord{{Date: "2026-03-31", ProductID: 7, Price: 10}}
 	var wg sync.WaitGroup
