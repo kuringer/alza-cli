@@ -3,6 +3,7 @@ package client
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -127,5 +128,43 @@ func TestHistoryStatsFor(t *testing.T) {
 
 	if _, ok := HistoryStatsFor(recs, 99, 90, now); ok {
 		t.Error("unknown product must have no stats")
+	}
+}
+
+// Regression: parallel writers must not store the same product twice a day.
+func TestAppendPriceRecordsConcurrent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "h.jsonl")
+	rec := []PriceRecord{{Date: "2026-03-31", ProductID: 7, Price: 10}}
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := AppendPriceRecords(path, rec); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	got, err := ReadPriceHistory(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Errorf("records = %d, want 1", len(got))
+	}
+}
+
+// Regression: a duplicate day (old file, unlocked writer) counts once.
+func TestHistoryStatsDedupeDay(t *testing.T) {
+	now := time.Date(2026, 3, 31, 12, 0, 0, 0, time.UTC)
+	recs := []PriceRecord{
+		{Date: "2026-03-31", ProductID: 7, Price: 10},
+		{Date: "2026-03-31", ProductID: 7, Price: 10},
+		{Date: "2026-03-30", ProductID: 7, Price: 20},
+	}
+	st, ok := HistoryStatsFor(recs, 7, 90, now)
+	if !ok || st.Count != 2 || st.Median != 15 {
+		t.Errorf("stats = %+v", st)
 	}
 }

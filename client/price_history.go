@@ -85,7 +85,23 @@ func ReadPriceHistory(path string) ([]PriceRecord, error) {
 
 // AppendPriceRecords appends records that are not yet stored for the same
 // product and day. It returns how many records were written.
+//
+// Read, dedupe and append run under an exclusive file lock, so parallel
+// runs (cron snapshot + manual check) do not write the same day twice.
 func AppendPriceRecords(path string, records []PriceRecord) (int, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return 0, err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0o600)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	if err := lockFile(f); err != nil {
+		return 0, fmt.Errorf("lock %s: %w", path, err)
+	}
+	defer unlockFile(f)
+
 	existing, err := ReadPriceHistory(path)
 	if err != nil {
 		return 0, err
@@ -117,19 +133,10 @@ func AppendPriceRecords(path string, records []PriceRecord) (int, error) {
 	if written == 0 {
 		return 0, nil
 	}
-
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return 0, err
-	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
-	if err != nil {
-		return 0, err
-	}
 	if _, err := f.WriteString(buf.String()); err != nil {
-		f.Close()
 		return 0, err
 	}
-	return written, f.Close()
+	return written, f.Sync()
 }
 
 func historyKey(r PriceRecord) string {
@@ -137,19 +144,23 @@ func historyKey(r PriceRecord) string {
 }
 
 // HistoryStatsFor returns price stats of productID over the last `days` days
-// (today included). ok is false when there is no record in the window.
+// (today included), one price per day (the first record of a day wins, so a
+// duplicate line does not skew the median). ok is false when there is no
+// record in the window.
 func HistoryStatsFor(records []PriceRecord, productID, days int, now time.Time) (PriceStats, bool) {
 	from := HistoryDate(now.AddDate(0, 0, -(days - 1)))
 	to := HistoryDate(now)
 	var prices []float64
+	seenDay := map[string]bool{}
 	for _, r := range records {
 		if r.ProductID != productID || r.Price <= 0 {
 			continue
 		}
 		// Day keys are ISO dates, so string order is date order.
-		if r.Date < from || r.Date > to {
+		if r.Date < from || r.Date > to || seenDay[r.Date] {
 			continue
 		}
+		seenDay[r.Date] = true
 		prices = append(prices, r.Price)
 	}
 	if len(prices) == 0 {
