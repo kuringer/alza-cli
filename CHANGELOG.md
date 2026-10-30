@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- `alza quickbuy` always reported success even when the card charge had not
+  landed. It now polls the order status after payment and reports
+  paid / pending / failed / unknown (`paymentStatus`, `orderStatus`,
+  `paymentError` in JSON).
+- `alza quickbuy` left the ordered product in the web cart, so it could be
+  bought twice. It now removes it (`removedFromCart`).
+- Removed a hardcoded AlzaBox location from quickbuy output; anonymized IDs in
+  `docs/API-SPEC.md`.
+
+### Changed
+- `main.go` split into per-command files (no behavior change).
+
 ## [0.6.0] - 2026-07-29
 
 ### Fixed

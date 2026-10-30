@@ -167,31 +167,95 @@ func (c *QuickbuyCmd) Run(g *Globals) error {
 		return fmt.Errorf("quickbuy failed: %w", err)
 	}
 
+	var cartErr error
+	if !c.QuoteOnly && !c.DryRun {
+		result.RemovedFromCart, cartErr = removeOrderedFromCart(cl, productID)
+	}
+
 	if g.Format == "json" {
 		outputJSON(result)
 		return nil
 	}
 
+	if c.QuoteOnly || c.DryRun {
+		fmt.Println()
+		if c.DryRun {
+			fmt.Println("🧪 DRY RUN - nič sa neobjednalo")
+		} else {
+			fmt.Println("✅ CENOVÁ PONUKA VYTVORENÁ")
+		}
+		fmt.Printf("   ID ponuky:    %s\n", result.OrderID)
+		fmt.Printf("   Celková suma: %.2f €\n", result.TotalPrice)
+		return nil
+	}
+
 	fmt.Println()
-	fmt.Println("╔═══════════════════════════════════════════════════════════╗")
-	if c.QuoteOnly {
-		fmt.Println("║  ✅ CENOVÁ PONUKA VYTVORENÁ                              ║")
-	} else {
-		fmt.Println("║  ✅ OBJEDNÁVKA ÚSPEŠNE VYTVORENÁ!                        ║")
+	fmt.Println(orderHeadline(result.PaymentStatus))
+	fmt.Printf("   Číslo objednávky: %s\n", result.OrderID)
+	fmt.Printf("   Celková suma:     %.2f €\n", result.TotalPrice)
+	fmt.Printf("   Doručenie:        AlzaBox ID %d\n", config.AlzaBoxID)
+	fmt.Printf("   Platba:           %s\n", paymentLine(result))
+	switch {
+	case cartErr != nil:
+		fmt.Printf("   Košík:            nepodarilo sa upratať (%v)\n", cartErr)
+	case result.RemovedFromCart:
+		fmt.Println("   Košík:            produkt odstránený z košíka")
 	}
-	fmt.Println("╠═══════════════════════════════════════════════════════════╣")
-	if c.QuoteOnly {
-		fmt.Printf("║  ID ponuky:        %-40s ║\n", result.OrderID)
-	} else {
-		fmt.Printf("║  Číslo objednávky: %-40s ║\n", result.OrderID)
-	}
-	fmt.Printf("║  Celková suma:     %.2f €%s ║\n", result.TotalPrice, strings.Repeat(" ", 34-len(fmt.Sprintf("%.2f", result.TotalPrice))))
-	if !c.QuoteOnly {
-		fmt.Println("║                                                           ║")
-		fmt.Println("║  Doručenie: AlzaBox Žilina - Obvodová (Tesco)             ║")
-		fmt.Println("║  Platba:    Kartou online                                 ║")
-	}
-	fmt.Println("╚═══════════════════════════════════════════════════════════╝")
 
 	return nil
+}
+
+func orderHeadline(paymentStatus string) string {
+	switch paymentStatus {
+	case client.PaymentStatusPaid:
+		return "✅ OBJEDNÁVKA VYTVORENÁ A ZAPLATENÁ"
+	case client.PaymentStatusFailed:
+		return "❌ OBJEDNÁVKA VYTVORENÁ, ALE ZRUŠENÁ / PLATBA ZLYHALA"
+	default:
+		return "⚠️  OBJEDNÁVKA VYTVORENÁ, PLATBA NEOVERENÁ"
+	}
+}
+
+func paymentLine(r *client.QuickBuyResult) string {
+	var line string
+	switch r.PaymentStatus {
+	case client.PaymentStatusPaid:
+		line = "zaplatené kartou"
+	case client.PaymentStatusPending:
+		line = "čaká na platbu - over v appke Alza alebo `alza orders`"
+	case client.PaymentStatusFailed:
+		line = "zlyhala"
+	default:
+		line = "neoverená - skontroluj `alza orders`"
+	}
+	if r.OrderStatus != "" {
+		line += fmt.Sprintf(" (stav: %s)", r.OrderStatus)
+	}
+	if r.PaymentError != "" {
+		line += fmt.Sprintf(" [chyba platby: %s]", r.PaymentError)
+	}
+	return line
+}
+
+type cartAPI interface {
+	GetCart() ([]client.CartItem, error)
+	RemoveFromCart(productID int) error
+}
+
+// removeOrderedFromCart drops the just-ordered product from the web cart so it
+// is not bought a second time from there. Returns true if it removed anything.
+func removeOrderedFromCart(cl cartAPI, productID int) (bool, error) {
+	items, err := cl.GetCart()
+	if err != nil {
+		return false, err
+	}
+	for _, item := range items {
+		if item.ProductID == productID {
+			if err := cl.RemoveFromCart(productID); err != nil {
+				return false, err
+			}
+			return true, nil
+		}
+	}
+	return false, nil
 }

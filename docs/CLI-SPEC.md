@@ -287,6 +287,8 @@ alza quickbuy 7816725 -q 2 -y --coupon VYPREDAJ15
 - `ALZA_QUICKBUY_ALZAPLUS` (voliteľné)
 - `ALZA_QUICKBUY_COUPON` (voliteľné v env, viac kódov cez čiarku)
 
+**Po objednávke** quickbuy ~12 s sleduje stav objednávky a vypíše platbu: `zaplatené`, `čaká na platbu`, `zlyhala` alebo `neoverená` (JSON: `paymentStatus`, `orderStatus`, `paymentError`). Objednaný produkt odstráni z webového košíka, ak tam bol (`removedFromCart`).
+
 **Poznámka:** pre `--quote` stačí `ALZA_QUICKBUY_ALZABOX_ID`, `ALZA_QUICKBUY_DELIVERY_ID` a `ALZA_QUICKBUY_PAYMENT_ID`.
 
 Voliteľne môžeš použiť config súbor:

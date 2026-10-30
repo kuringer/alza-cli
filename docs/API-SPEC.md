@@ -903,10 +903,10 @@ Content-Type: application/json
 {
   "options": {
     "Items": [{"CommodityId": 7816725, "Count": 1}],
-    "AlzaBoxId": 1009905,
+    "AlzaBoxId": 1000000,
     "DeliveryId": 2680,
     "PaymentId": "216",
-    "PrefferedCard": "5753152",
+    "PrefferedCard": "1234567",
     "IsAlzaPlus": true,
     "TotalPriceDec": 27.9,
     "IsLoggedIn": true,
@@ -954,27 +954,27 @@ Content-Type: application/json
     "javaEnabled": false,
     "deviceFingerprint": "uuid"
   },
-  "cardId": 5753152,
+  "cardId": 1234567,
   "fastOrder": true,
-  "orderId": "578794375",
-  "afterOrderPaymentId": 2141768152,
+  "orderId": "100000000",
+  "afterOrderPaymentId": 2000000000,
   "deviceFingerprint": "uuid"
 }
 ```
 
 ### Step 4: Success confirmation
 ```
-GET /Services/EShopService.svc/FastOrderSuccessDialog?isPaid=True&masterOrderId=578794375
+GET /Services/EShopService.svc/FastOrderSuccessDialog?isPaid=True&masterOrderId=100000000
 ```
 
 ### Kľúčové IDs
 
 | Parameter | Hodnota | Popis |
 |-----------|---------|-------|
-| AlzaBoxId | 1009905 | Žilina - Obvodová (Tesco) |
+| AlzaBoxId | 1000000 | vybraný AlzaBox |
 | DeliveryId | 2680 | AlzaBox delivery type |
 | PaymentId | 216 | Kartou online |
-| PrefferedCard | 5753152 | ID uloženej karty |
+| PrefferedCard | 1234567 | ID uloženej karty |
 
 ### Poznámky
 - Vyžaduje uloženú platobnú kartu

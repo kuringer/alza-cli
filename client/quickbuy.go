@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // QuickBuyConfig contains delivery and payment settings
 type QuickBuyConfig struct {
-	AlzaBoxID  int    // AlzaBox location ID (e.g., 1009905 = Žilina Obvodová)
+	AlzaBoxID  int    // AlzaBox location ID
 	DeliveryID int    // Delivery type ID (e.g., 2680 = AlzaBox)
 	PaymentID  string // Payment method ID (e.g., "216" = Card online)
 	CardID     string // Saved card ID
@@ -26,6 +27,60 @@ type QuickBuyResult struct {
 	TotalPrice float64 `json:"totalPrice"`
 	Success    bool    `json:"success"`
 	Message    string  `json:"message"`
+	// PaymentStatus is one of the PaymentStatus* constants (real orders only).
+	PaymentStatus   string `json:"paymentStatus,omitempty"`
+	OrderStatus     string `json:"orderStatus,omitempty"`
+	PaymentError    string `json:"paymentError,omitempty"`
+	RemovedFromCart bool   `json:"removedFromCart,omitempty"`
+}
+
+const (
+	PaymentStatusPaid    = "paid"
+	PaymentStatusPending = "pending"
+	PaymentStatusFailed  = "failed"
+	PaymentStatusUnknown = "unknown"
+)
+
+// classifyOrderStatus maps Alza's human-readable order status to a payment state.
+// Right after FastOrderSend the order shows "Počkajte prosím" until the card
+// charge lands; once paid it moves on (e.g. "Nákup pripravujeme na odoslanie").
+func classifyOrderStatus(status string) string {
+	s := strings.ToLower(strings.TrimSpace(status))
+	switch {
+	case s == "":
+		return PaymentStatusUnknown
+	case strings.Contains(s, "zrušen") || strings.Contains(s, "storn"):
+		return PaymentStatusFailed
+	case strings.Contains(s, "počkajte") || strings.Contains(s, "platb") || strings.Contains(s, "zaplat"):
+		return PaymentStatusPending
+	default:
+		return PaymentStatusPaid
+	}
+}
+
+// pollOrderStatus re-reads active orders until the order leaves the pending
+// state or attempts run out. Returns the payment state and raw order status.
+func pollOrderStatus(fetch func() ([]Order, error), orderID string, attempts int, wait time.Duration) (string, string) {
+	payment, status := PaymentStatusUnknown, ""
+	for i := 0; i < attempts; i++ {
+		if i > 0 {
+			time.Sleep(wait)
+		}
+		orders, err := fetch()
+		if err != nil {
+			continue
+		}
+		for _, o := range orders {
+			if o.ID == orderID {
+				status = o.Status
+				payment = classifyOrderStatus(o.Status)
+			}
+		}
+		if payment == PaymentStatusPaid || payment == PaymentStatusFailed {
+			break
+		}
+	}
+	return payment, status
 }
 
 type fastOrderItem struct {
@@ -451,20 +506,28 @@ func (c *TLSClient) QuickBuy(productID int, quantity int, config QuickBuyConfig)
 	}
 	paymentJSON, _ := json.Marshal(paymentBody)
 
-	_, err = c.Post(EndpointPaymentRepeat, string(paymentJSON))
-	if err != nil {
-		// Payment might still succeed, check order status
-		if c.debug {
-			fmt.Printf("[DEBUG] Payment request returned error (may still succeed): %v\n", err)
-		}
-	}
-
-	return &QuickBuyResult{
+	result := &QuickBuyResult{
 		OrderID:    orderID,
 		TotalPrice: totalPrice,
 		Success:    true,
 		Message:    fmt.Sprintf("Objednávka #%s vytvorená", orderID),
-	}, nil
+	}
+
+	payResp, err := c.Post(EndpointPaymentRepeat, string(paymentJSON))
+	if err != nil {
+		// The charge may still land; the order status check below decides.
+		result.PaymentError = err.Error()
+	}
+	if c.debug {
+		fmt.Printf("[DEBUG] Payment response: %s (err: %v)\n", string(payResp), err)
+	}
+
+	if c.userID == "" {
+		_, _ = c.GetUserStatus()
+	}
+	result.PaymentStatus, result.OrderStatus = pollOrderStatus(c.getActiveOrders, orderID, 6, 2*time.Second)
+
+	return result, nil
 }
 
 func normalizePromoCodes(codes []string) []string {
