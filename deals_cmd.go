@@ -12,6 +12,8 @@ import (
 
 type DealsCmd struct {
 	Snapshot DealsSnapshotCmd `cmd:"" help:"Store today's Alza price of favorites (+ --id) in the local price history"`
+	Check    DealsCheckCmd    `cmd:"" help:"Is the Alza discount real? Compare with Heureka and own price history"`
+	Scan     DealsScanCmd     `cmd:"" help:"Run check for every favorite, sorted by real saving vs market"`
 }
 
 type DealsSnapshotCmd struct {
@@ -65,7 +67,7 @@ func (c *DealsSnapshotCmd) Run(g *Globals) error {
 			continue
 		}
 		seen[id] = true
-		p, err := cl.GetProduct(id)
+		p, err := cl.GetProductSummary(id)
 		if err != nil {
 			res.Warnings = append(res.Warnings, fmt.Sprintf("product %d: %v", id, err))
 			continue

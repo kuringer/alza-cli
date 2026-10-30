@@ -141,15 +141,48 @@ type productAvailabilityResponse struct {
 
 // GetProduct returns rich product info for a commodity ID.
 func (c *TLSClient) GetProduct(productID int) (*ProductDetail, error) {
+	detail, resp, err := c.getProductDetail(productID)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Data.DescPageURL != "" {
+		descURL := normalizeExternalURL(resp.Data.DescPageURL)
+		if descHTML, err := c.Get(descURL); err == nil {
+			detail.Description = extractDescriptionFromHTML(string(descHTML))
+		}
+	}
+
+	if availability, err := c.getProductAvailability(productID); err == nil {
+		detail.Availability = availability.Title
+		detail.AvailabilityDetail = availability.Description
+		detail.ExpectedStockDate = availability.ExpectedStockDate
+	}
+
+	// Fetch review stats (non-blocking, ignore errors)
+	if reviewStats, err := c.GetReviewStats(productID); err == nil {
+		detail.ReviewStats = reviewStats
+	}
+
+	return detail, nil
+}
+
+// GetProductSummary returns name, prices and catalog number only (one request,
+// no description, availability or reviews).
+func (c *TLSClient) GetProductSummary(productID int) (*ProductDetail, error) {
+	detail, _, err := c.getProductDetail(productID)
+	return detail, err
+}
+
+func (c *TLSClient) getProductDetail(productID int) (*ProductDetail, *productDetailResponse, error) {
 	endpoint := fmt.Sprintf(EndpointProductDetail, productID)
 	data, err := c.Get(endpoint)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var resp productDetailResponse
 	if err := json.Unmarshal(data, &resp); err != nil {
-		return nil, fmt.Errorf("failed to parse product: %w", err)
+		return nil, nil, fmt.Errorf("failed to parse product: %w", err)
 	}
 
 	detail := ProductDetail{
@@ -171,26 +204,7 @@ func (c *TLSClient) GetProduct(productID int) (*ProductDetail, error) {
 	}
 
 	detail.ComparePriceNoCurrency = parsePrice(detail.ComparePrice)
-
-	if resp.Data.DescPageURL != "" {
-		descURL := normalizeExternalURL(resp.Data.DescPageURL)
-		if descHTML, err := c.Get(descURL); err == nil {
-			detail.Description = extractDescriptionFromHTML(string(descHTML))
-		}
-	}
-
-	if availability, err := c.getProductAvailability(productID); err == nil {
-		detail.Availability = availability.Title
-		detail.AvailabilityDetail = availability.Description
-		detail.ExpectedStockDate = availability.ExpectedStockDate
-	}
-
-	// Fetch review stats (non-blocking, ignore errors)
-	if reviewStats, err := c.GetReviewStats(productID); err == nil {
-		detail.ReviewStats = reviewStats
-	}
-
-	return &detail, nil
+	return &detail, &resp, nil
 }
 
 func (c *TLSClient) getProductAvailability(productID int) (*productAvailabilityResponse, error) {
