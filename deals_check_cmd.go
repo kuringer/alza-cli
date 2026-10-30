@@ -12,7 +12,7 @@ import (
 	"github.com/kuringer/alza-cli/client"
 )
 
-// dealsScanDelay is the pause between Heureka lookups in scan (one browser tab at a time).
+// dealsScanDelay is the pause between Heureka lookups in scan (polite request rate).
 const dealsScanDelay = 1500 * time.Millisecond
 
 // dealsCheapestShown is how many cheapest market offers the report keeps.

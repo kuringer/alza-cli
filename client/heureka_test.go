@@ -253,3 +253,15 @@ func TestNewExecSurfMissing(t *testing.T) {
 		t.Errorf("error should mention --no-heureka: %v", err)
 	}
 }
+
+func TestNewBrowserRunnerSelection(t *testing.T) {
+	t.Setenv(BrowserRunnerEnv, "bogus")
+	if _, err := NewBrowserRunner(); err == nil {
+		t.Error("want error for unknown runner")
+	}
+	t.Setenv(BrowserRunnerEnv, "surf")
+	t.Setenv(SurfBinEnv, "/nonexistent/surf-binary")
+	if _, err := NewBrowserRunner(); !errors.Is(err, ErrSurfMissing) {
+		t.Errorf("surf runner: err = %v", err)
+	}
+}

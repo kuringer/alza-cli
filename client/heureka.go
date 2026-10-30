@@ -133,9 +133,10 @@ type Heureka struct {
 	Timeout time.Duration
 }
 
-// NewHeureka returns a Heureka client using the surf CLI.
+// NewHeureka returns a Heureka client using the configured browser runner
+// (headless Chromium by default, see ALZA_BROWSER_RUNNER).
 func NewHeureka() (*Heureka, error) {
-	s, err := NewExecSurf()
+	s, err := NewBrowserRunner()
 	if err != nil {
 		return nil, err
 	}
