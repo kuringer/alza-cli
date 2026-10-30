@@ -75,6 +75,8 @@ type dealReport struct {
 	History90       *client.PriceStats `json:"history90,omitempty"`
 	SavingVsMarket  *float64           `json:"savingVsMarket,omitempty"`
 	Verdict         client.DealVerdict `json:"verdict"`
+	// lookupFailed: the Heureka lookup itself returned an error (not "no other shop").
+	lookupFailed bool
 }
 
 func subjectFromProduct(p *client.ProductDetail) dealSubject {
@@ -102,6 +104,7 @@ func buildDealReport(ctx context.Context, s dealSubject, market marketLooker, hi
 		m, err := market.Lookup(ctx, s.Name, s.CatalogNumber)
 		if err != nil {
 			r.MarketError = err.Error()
+			r.lookupFailed = true
 		}
 		var marketMin float64
 		var unverified bool

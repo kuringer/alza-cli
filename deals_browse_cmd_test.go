@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -149,4 +150,73 @@ func (f fakeDetails) GetProductSummary(int) (*client.ProductDetail, error) {
 		return nil, context.DeadlineExceeded
 	}
 	return f.p, nil
+}
+
+type failingMarket struct{}
+
+func (failingMarket) Lookup(context.Context, string, string) (*client.HeurekaMatch, error) {
+	return nil, errors.New("Heureka product page: no __NEXT_DATA__ on page")
+}
+
+func TestBrowseRowsKeepListingLabelAndUsed(t *testing.T) {
+	// Listing label says 31 %, prices give 32 % (1 - 18.99/27.90).
+	top := []client.ListingItem{
+		{ID: 1, Name: "Acme Toaster", URL: "https://www.alza.sk/x-d1.htm", Price: 18.99, ComparePrice: 27.9, ClaimedDiscount: 31, Label: "BLACK FRIDAY -31 %"},
+		{ID: 2, Name: "Acme Phone", Price: 300, ComparePrice: 500, ClaimedDiscount: 40, Used: true},
+	}
+	reports := make([]dealReport, len(top))
+	for i, it := range top {
+		reports[i] = buildDealReport(context.Background(), browseSubject(it, nil), nil, nil, time.Now())
+	}
+	if reports[0].ClaimedDiscount != 32 {
+		t.Fatalf("precondition: computed %% = %d, want 32", reports[0].ClaimedDiscount)
+	}
+	rows := buildBrowseRows(top, reports)
+	var buf bytes.Buffer
+	printBrowseTable(&buf, rows)
+	out := buf.String()
+	toaster := ""
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "Acme Toaster") {
+			toaster = line
+		}
+	}
+	if !strings.Contains(toaster, "31 %") || strings.Contains(toaster, "32 %") {
+		t.Errorf("UVÁDZA must show the label 31 %%:\n%s", out)
+	}
+	if !strings.Contains(out, "[bazár] Acme Phone") || strings.Contains(out, "[bazár] Acme Toaster") {
+		t.Errorf("used row not marked:\n%s", out)
+	}
+	for _, r := range rows {
+		if r.ProductID == 2 && !r.Used {
+			t.Error("used flag missing on row 2")
+		}
+		if r.ProductID == 1 && (r.ListingClaimedDiscount != 31 || r.ClaimedDiscount != 32) {
+			t.Errorf("row 1: listing %d, computed %d", r.ListingClaimedDiscount, r.ClaimedDiscount)
+		}
+	}
+	var cands bytes.Buffer
+	printCandidates(&cands, top, 0)
+	if !strings.Contains(cands.String(), "[bazár] Acme Phone") {
+		t.Errorf("candidates table: used item not marked:\n%s", cands.String())
+	}
+}
+
+func TestAllLookupsFailed(t *testing.T) {
+	top := []client.ListingItem{{ID: 1, Name: "A", Price: 10}, {ID: 2, Name: "B", Price: 20}}
+	subjects := []dealSubject{browseSubject(top[0], nil), browseSubject(top[1], nil)}
+	failed := buildBrowseRows(top, checkSubjects(context.Background(), subjects, failingMarket{}, nil, time.Now(), 2, 0, func(int, string) {}))
+	err := allLookupsFailed(failed)
+	if err == nil || !strings.Contains(err.Error(), "všetkých 2") || !strings.Contains(err.Error(), "__NEXT_DATA__") {
+		t.Errorf("all failed: err = %v", err)
+	}
+	// One lookup that worked (or found no other shop) is enough: no error.
+	mixed := append([]browseRow{}, failed...)
+	mixed[1].lookupFailed = false
+	if err := allLookupsFailed(mixed); err != nil {
+		t.Errorf("mixed: err = %v", err)
+	}
+	if err := allLookupsFailed(nil); err != nil {
+		t.Errorf("no rows: err = %v", err)
+	}
 }

@@ -95,6 +95,11 @@ func rankCandidates(items []client.ListingItem, f browseFilter) []client.Listing
 type browseRow struct {
 	dealReport
 	URL string `json:"url,omitempty"`
+	// ListingClaimedDiscount is the % from the listing box (Alza label), kept
+	// apart from claimedDiscountPercent, which is computed from the detail prices.
+	ListingClaimedDiscount int `json:"listingClaimedDiscountPercent,omitempty"`
+	// Used marks Alza bazar items (% against the new price).
+	Used bool `json:"used,omitempty"`
 	// RealDiscount: how much cheaper Alza is than the market reference, in % (negative = more expensive).
 	RealDiscount *float64 `json:"realDiscountPercent,omitempty"`
 }
@@ -108,6 +113,7 @@ type browseResult struct {
 	Candidates   []client.ListingItem `json:"candidates"`
 	Checked      []browseRow          `json:"checked,omitempty"`
 	Warnings     []string             `json:"warnings,omitempty"`
+	Error        string               `json:"error,omitempty"`
 	Seconds      float64              `json:"seconds"`
 }
 
@@ -163,10 +169,14 @@ func (c *DealsBrowseCmd) Run(g *Globals) error {
 		res.Warnings = append(res.Warnings, warnings...)
 	}
 	res.Seconds = time.Since(start).Round(100 * time.Millisecond).Seconds()
+	failErr := allLookupsFailed(res.Checked)
+	if failErr != nil {
+		res.Error = failErr.Error()
+	}
 
 	if g.Format == "json" {
 		outputJSON(res)
-		return nil
+		return failErr
 	}
 	for _, w := range res.Warnings {
 		fmt.Fprintf(os.Stderr, "Warning: %s\n", w)
@@ -180,7 +190,21 @@ func (c *DealsBrowseCmd) Run(g *Globals) error {
 		printCandidates(os.Stdout, res.Candidates, c.Limit)
 	}
 	fmt.Fprintf(os.Stderr, "hotovo za %s\n", time.Since(start).Round(time.Second))
-	return nil
+	return failErr
+}
+
+// allLookupsFailed: an error when every Heureka lookup failed (blocked or
+// broken browser), so the table has no market data at all.
+func allLookupsFailed(rows []browseRow) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	for _, r := range rows {
+		if !r.lookupFailed {
+			return nil
+		}
+	}
+	return fmt.Errorf("Heureka: všetkých %d vyhľadaní zlyhalo, porovnanie s trhom chýba (prvá chyba: %s)", len(rows), rows[0].MarketError)
 }
 
 // fetchListing reads listing pages 1..pages, deduplicated by product id. It
@@ -244,15 +268,26 @@ func (c *DealsBrowseCmd) checkTop(g *Globals, top []client.ListingItem, logf fun
 		logf("[%d/%d] %s", done, len(subjects), name)
 	})
 
+	return buildBrowseRows(top, reports), warnings, nil
+}
+
+// buildBrowseRows joins listing items and their reports (same order), sorted by saving vs market.
+func buildBrowseRows(top []client.ListingItem, reports []dealReport) []browseRow {
 	rows := make([]browseRow, len(reports))
 	for i, r := range reports {
-		if r.ClaimedDiscount == 0 {
-			r.ClaimedDiscount = top[i].ClaimedDiscount
-		}
-		rows[i] = browseRow{dealReport: r, URL: top[i].URL, RealDiscount: realDiscount(r)}
+		rows[i] = browseRow{dealReport: r, URL: top[i].URL, ListingClaimedDiscount: top[i].ClaimedDiscount,
+			Used: top[i].Used, RealDiscount: realDiscount(r)}
 	}
 	sortRowsBySaving(rows)
-	return rows, warnings, nil
+	return rows
+}
+
+// usedPrefix marks Alza bazar items in text tables.
+func usedPrefix(used bool) string {
+	if used {
+		return "[bazár] "
+	}
+	return ""
 }
 
 // browseSubject uses the product detail when available (part number, current
@@ -362,11 +397,14 @@ func printBrowseTable(w io.Writer, rows []browseRow) {
 				real = fmt.Sprintf("%.0f %%", *r.SavingVsMarket/ref*100)
 			}
 		}
+		// The Alza label from the listing wins over the % computed from prices.
 		claimed := "-"
-		if r.ClaimedDiscount > 0 {
+		if r.ListingClaimedDiscount > 0 {
+			claimed = fmt.Sprintf("%d %%", r.ListingClaimedDiscount)
+		} else if r.ClaimedDiscount > 0 {
 			claimed = fmt.Sprintf("%d %%", r.ClaimedDiscount)
 		}
-		fmt.Fprintf(w, "%-18s %9.2f %10s %9s %7s %7s  %s (%d)\n", r.Verdict.Label, r.AlzaPrice, market, saving, claimed, real, truncate(r.Name, 50), r.ProductID)
+		fmt.Fprintf(w, "%-18s %9.2f %10s %9s %7s %7s  %s%s (%d)\n", r.Verdict.Label, r.AlzaPrice, market, saving, claimed, real, usedPrefix(r.Used), truncate(r.Name, 50), r.ProductID)
 	}
 	fmt.Fprintln(w, "* TRH = najlacnejšia ponuka na Heureke s približnou dopravou; ? = neistá zhoda produktu alebo neoverená cena")
 	fmt.Fprintln(w, "  UVÁDZA = zľava podľa Alzy; REÁLNE = o koľko je Alza lacnejšia ako trh (záporné = drahšia)")
@@ -383,7 +421,7 @@ func printCandidates(w io.Writer, items []client.ListingItem, limit int) {
 		if it.ComparePrice > 0 {
 			cmp = fmt.Sprintf("%.2f", it.ComparePrice)
 		}
-		fmt.Fprintf(w, "%9.2f %5d%% %9.2f %9s %5.1f %7d  %s (%d)\n", it.ClaimedSaving(), it.ClaimedDiscount, it.Price, cmp, it.Rating, it.ReviewCount, truncate(it.Name, 50), it.ID)
+		fmt.Fprintf(w, "%9.2f %5d%% %9.2f %9s %5.1f %7d  %s%s (%d)\n", it.ClaimedSaving(), it.ClaimedDiscount, it.Price, cmp, it.Rating, it.ReviewCount, usedPrefix(it.Used), truncate(it.Name, 50), it.ID)
 	}
 	fmt.Fprintln(w, "* úspora a zľava podľa Alzy (preškrtnutá cena), bez porovnania s trhom")
 }

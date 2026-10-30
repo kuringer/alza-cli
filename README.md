@@ -133,7 +133,8 @@ products that pass the cheap filter (`--min-discount 20`, `--min-reviews 10`,
 only with `--used`), ranks them by the saving Alza claims in EUR and checks the
 top `--check` (default 20) on Heureka. The table is sorted by real saving vs
 market and shows the claimed % next to the real % (negative = Alza is more
-expensive). A `?` marks an uncertain Heureka match. Listing pages need no
+expensive). A `?` marks an uncertain Heureka match; `[bazár]` marks used items
+(`--used`). If every Heureka lookup fails, the command exits with code 1. Listing pages need no
 login; with a token the check also uses part numbers (more certain matches).
 20 products take about 1 minute (one headless browser, 3 pages at once).
 
