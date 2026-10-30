@@ -40,39 +40,10 @@ func (c *DealsSnapshotCmd) Run(g *Globals) error {
 
 	today := client.HistoryDate(time.Now())
 	res := snapshotResult{Path: path}
-	seen := map[int]bool{}
-
-	if !c.NoFavorites {
-		items, err := favoriteItems(cl)
-		if err != nil {
-			res.Warnings = append(res.Warnings, fmt.Sprintf("favorites: %v", err))
-		}
-		for _, it := range items {
-			if it.ID <= 0 || seen[it.ID] {
-				continue
-			}
-			seen[it.ID] = true
-			res.Records = append(res.Records, client.PriceRecord{
-				Date:         today,
-				ProductID:    it.ID,
-				Name:         it.Name,
-				Price:        it.PriceNoCurrency,
-				ComparePrice: client.ParsePrice(it.ComparePrice),
-			})
-		}
-	}
-
-	for _, id := range c.ID {
-		if seen[id] {
-			continue
-		}
-		seen[id] = true
-		p, err := cl.GetProductSummary(id)
-		if err != nil {
-			res.Warnings = append(res.Warnings, fmt.Sprintf("product %d: %v", id, err))
-			continue
-		}
-		res.Records = append(res.Records, recordFromProduct(today, p))
+	subjects, warnings := loadDealSubjects(cl, c.ID, !c.NoFavorites)
+	res.Warnings = warnings
+	for _, sub := range subjects {
+		res.Records = append(res.Records, sub.record(today))
 	}
 
 	if len(res.Records) == 0 {
@@ -106,14 +77,38 @@ func favoriteItems(cl *client.TLSClient) ([]client.ListItem, error) {
 	return cl.GetListItems(list.ID)
 }
 
-func recordFromProduct(date string, p *client.ProductDetail) client.PriceRecord {
-	return client.PriceRecord{
-		Date:         date,
-		ProductID:    p.ID,
-		Name:         p.Name,
-		Price:        p.PriceNoCurrency,
-		ComparePrice: p.ComparePriceNoCurrency,
+// loadDealSubjects returns favorites (optional) + ids with prices from the
+// product detail. The favorites list shows "from" prices (e.g. multi-buy),
+// so it only provides the IDs.
+func loadDealSubjects(cl *client.TLSClient, ids []int, favorites bool) ([]dealSubject, []string) {
+	var warnings []string
+	var all []int
+	if favorites {
+		items, err := favoriteItems(cl)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("favorites: %v", err))
+		}
+		for _, it := range items {
+			all = append(all, it.ID)
+		}
 	}
+	all = append(all, ids...)
+
+	seen := map[int]bool{}
+	var out []dealSubject
+	for _, id := range all {
+		if id <= 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		p, err := cl.GetProductSummary(id)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("product %d: %v", id, err))
+			continue
+		}
+		out = append(out, subjectFromProduct(p))
+	}
+	return out, warnings
 }
 
 func formatEUR(v float64) string {

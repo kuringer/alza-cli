@@ -1,6 +1,7 @@
 package client
 
 import (
+	"regexp"
 	"sort"
 	"strings"
 	"unicode"
@@ -23,6 +24,19 @@ const (
 // matchStopwords are Heureka name suffixes that carry no identity.
 var matchStopwords = map[string]bool{"originalny": true}
 
+// matchOtherKind marks a different kind of product (clone, refurbished, used).
+// A Heureka name with such a word that the Alza name lacks scores lower.
+var matchOtherKind = map[string]bool{
+	"kompatibilny": true, "kompatibilni": true, "repasovany": true,
+	"renovovany": true, "bazar": true, "pouzity": true,
+}
+
+const matchOtherKindFactor = 0.6
+
+// unitSpaceRe joins a number and its unit ("0,6 mm" -> "0,6mm", "8 ks" -> "8ks"),
+// so both spellings give the same tokens.
+var unitSpaceRe = regexp.MustCompile(`(\d)\s+(mm|cm|m|ml|l|g|kg|mg|ks|w|mah|gb|tb|v)\b`)
+
 var diacriticsFold = strings.NewReplacer(
 	"á", "a", "ä", "a", "č", "c", "ď", "d", "é", "e", "ě", "e", "í", "i",
 	"ĺ", "l", "ľ", "l", "ň", "n", "ó", "o", "ô", "o", "ö", "o", "ŕ", "r",
@@ -32,6 +46,7 @@ var diacriticsFold = strings.NewReplacer(
 // matchTokens lowercases, folds diacritics and splits on non-alphanumerics.
 func matchTokens(s string) []string {
 	s = diacriticsFold.Replace(strings.ToLower(s))
+	s = unitSpaceRe.ReplaceAllString(s, "$1$2")
 	return strings.FieldsFunc(s, func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 	})
@@ -68,6 +83,18 @@ func ScoreHeurekaName(alzaName, partNumber, heurekaName string) (float64, string
 		return 0, ""
 	}
 
+	// Model codes come from the Alza name only: the part number is often an
+	// EAN that never appears in a Heureka name.
+	codes, codesFound := 0, 0
+	for t := range alza {
+		if len(t) >= 2 && hasDigit(t) {
+			codes++
+			if hk[t] {
+				codesFound++
+			}
+		}
+	}
+
 	part := compactName(partNumber)
 	if part != "" {
 		alza[part] = true
@@ -80,16 +107,6 @@ func ScoreHeurekaName(alzaName, partNumber, heurekaName string) (float64, string
 		}
 	}
 	precision := float64(shared) / float64(len(hk))
-
-	codes, codesFound := 0, 0
-	for t := range alza {
-		if len(t) >= 2 && hasDigit(t) {
-			codes++
-			if hk[t] {
-				codesFound++
-			}
-		}
-	}
 	codeRecall := precision
 	if codes > 0 {
 		codeRecall = float64(codesFound) / float64(codes)
@@ -100,6 +117,12 @@ func ScoreHeurekaName(alzaName, partNumber, heurekaName string) (float64, string
 	if part != "" && len(part) >= 4 && (hk[part] || strings.Contains(compactName(heurekaName), part)) {
 		if partScore := 0.8 + 0.2*precision; partScore > score {
 			score, reason = partScore, "part number"
+		}
+	}
+	for t := range hk {
+		if matchOtherKind[t] && !alza[t] {
+			score *= matchOtherKindFactor
+			break
 		}
 	}
 	return score, reason

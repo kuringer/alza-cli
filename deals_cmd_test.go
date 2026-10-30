@@ -127,3 +127,17 @@ func TestTruncate(t *testing.T) {
 		t.Error("truncate")
 	}
 }
+
+func TestBuildDealReportOnlyAlzaOnMarket(t *testing.T) {
+	m := testMatch(true)
+	m.Product.Offers = nil
+	m.Product.MinPrice = 91.9
+	m.Product.AlzaPrice = 91.9
+	r := buildDealReport(context.Background(), testSubject, fakeMarket{match: m}, nil, time.Now())
+	if r.Market != nil || !strings.Contains(r.MarketError, "iná ponuka") {
+		t.Errorf("report = %+v", r)
+	}
+	if r.Verdict.Code != client.VerdictUnknown {
+		t.Errorf("verdict = %+v", r.Verdict)
+	}
+}

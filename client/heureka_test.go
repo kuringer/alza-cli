@@ -84,6 +84,25 @@ func TestParseHeurekaProduct(t *testing.T) {
 		t.Errorf("MarketMin = %v", p.MarketMin())
 	}
 
+	if p.AlzaPrice != 91.9 {
+		t.Errorf("AlzaPrice = %v", p.AlzaPrice)
+	}
+
+	// Heureka minPrice is Alza's own offer: it must not count as market.
+	onlyAlza := `[{"name":"X","minPrice":2.49,"offerCount":1,"offers":[{"shop":"Alza.sk","price":2.49,"ship":0}]}]`
+	p2, err := ParseHeurekaProduct(json.RawMessage(onlyAlza))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p2.MarketMin() != 0 || p2.CheapestTotal() != 0 {
+		t.Errorf("only Alza: MarketMin = %v, CheapestTotal = %v", p2.MarketMin(), p2.CheapestTotal())
+	}
+	alzaMin := `[{"name":"X","minPrice":90,"offerCount":3,"offers":[{"shop":"Alza.sk","price":90,"ship":0},{"shop":"Shop A","price":99,"ship":2}]}]`
+	p3, _ := ParseHeurekaProduct(json.RawMessage(alzaMin))
+	if p3.MarketMin() != 99 {
+		t.Errorf("MarketMin = %v, want 99", p3.MarketMin())
+	}
+
 	if _, err := ParseHeurekaProduct(json.RawMessage(`[{"error":"no __NEXT_DATA__ on page"}]`)); err == nil {
 		t.Error("want error from script error row")
 	}
@@ -102,8 +121,10 @@ func TestScoreHeurekaName(t *testing.T) {
 		{"diacritics", "Čistič Žltý 5", "", "cistic zlty 5", 1, 1, "same name"},
 		{"part number in name", "Acme PG-50 + CL-51 multipack", "5225B013", "Acme 5225B013 - originálny", 0.99, 1, "part number"},
 		{"bundle with extra part", "Acme PG-50 + CL-51 multipack", "5225B013", "Acme 5225B006 + 5225B013 - originálny", 0.9, 0.95, "part number"},
-		{"subset name", "Acme Sonic Premium All-in-One HX90/88 2 ks", "", "Acme Sonic HX90/88", 0.99, 1, "name tokens"},
-		{"compatible clone", "Acme PG-50 + CL-51 multipack", "5225B013", "Clone Acme PG-50 + CL-51 Multipack - kompatibilný", 0.6, 0.8, "name tokens"},
+		{"subset name", "Acme Sonic Premium All-in-One HX90/88", "", "Acme Sonic HX90/88", 0.99, 1, "name tokens"},
+		{"subset name, pack size missing", "Acme Sonic Premium HX90/88 2 ks", "", "Acme Sonic HX90/88", 0.85, 0.9, "name tokens"},
+		{"unit spacing and EAN part number", "Acme Kefky 0,6mm Normal - modré 8 ks", "1234567890123", "Acme Normal kefky 0,6 mm 8 ks", 0.99, 1, "name tokens"},
+		{"compatible clone", "Acme PG-50 + CL-51 multipack", "5225B013", "Clone Acme PG-50 + CL-51 Multipack - kompatibilný", 0.4, 0.6, "name tokens"},
 		{"unrelated", "Acme LP-2000D", "", "Other Thing 9", 0, 0.01, "name tokens"},
 	}
 	for _, tt := range tests {

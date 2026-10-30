@@ -79,10 +79,6 @@ func subjectFromProduct(p *client.ProductDetail) dealSubject {
 	return dealSubject{ID: p.ID, Name: p.Name, CatalogNumber: p.CatalogNumber, Price: p.PriceNoCurrency, ComparePrice: p.ComparePriceNoCurrency, PriceHeader: p.PriceHeader}
 }
 
-func subjectFromListItem(it client.ListItem) dealSubject {
-	return dealSubject{ID: it.ID, Name: it.Name, CatalogNumber: it.CatalogNumber, Price: it.PriceNoCurrency, ComparePrice: client.ParsePrice(it.ComparePrice)}
-}
-
 func (s dealSubject) record(date string) client.PriceRecord {
 	return client.PriceRecord{Date: date, ProductID: s.ID, Name: s.Name, Price: s.Price, ComparePrice: s.ComparePrice}
 }
@@ -105,7 +101,9 @@ func buildDealReport(ctx context.Context, s dealSubject, market marketLooker, hi
 		if err != nil {
 			r.MarketError = err.Error()
 		}
-		if m != nil && m.Product != nil {
+		if m != nil && m.Product != nil && m.Product.MarketMin() <= 0 {
+			r.MarketError = fmt.Sprintf("na Heureke nie je iná ponuka ako Alza (%s)", m.Product.URL)
+		} else if m != nil && m.Product != nil {
 			p := m.Product
 			r.Market = &dealMarket{
 				Query: m.Query, Name: p.Name, URL: p.URL, Certain: m.Certain,
@@ -213,18 +211,12 @@ func (c *DealsScanCmd) Run(g *Globals) error {
 	if err != nil {
 		return err
 	}
-	items, err := favoriteItems(cl)
-	if err != nil {
-		return err
-	}
-	var subjects []dealSubject
-	for _, it := range items {
-		if it.ID > 0 {
-			subjects = append(subjects, subjectFromListItem(it))
-		}
+	subjects, warnings := loadDealSubjects(cl, nil, true)
+	for _, w := range warnings {
+		fmt.Fprintf(os.Stderr, "Warning: %s\n", w)
 	}
 	if len(subjects) == 0 {
-		return fmt.Errorf("favorites list is empty")
+		return fmt.Errorf("no favorites to scan")
 	}
 	now := time.Now()
 	history, err := recordAndReadHistory(subjects, now, c.NoRecord)
@@ -351,7 +343,11 @@ func printScanTable(w io.Writer, reports []dealReport) {
 	for _, r := range reports {
 		market, saving := "-", "-"
 		if r.Market != nil {
-			market = fmt.Sprintf("%.2f", r.Market.CheapestTotal)
+			ref := r.Market.CheapestTotal
+			if ref <= 0 {
+				ref = r.Market.MarketMin
+			}
+			market = fmt.Sprintf("%.2f", ref)
 			if !r.Market.Certain {
 				market += "?"
 			}

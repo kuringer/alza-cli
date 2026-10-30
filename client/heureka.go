@@ -88,6 +88,8 @@ type HeurekaProduct struct {
 	MaxPrice   float64        `json:"maxPrice,omitempty"`
 	OfferCount int            `json:"offerCount"`
 	Offers     []HeurekaOffer `json:"offers"`
+	// AlzaPrice is Alza's own offer on Heureka (lowest), excluded from Offers.
+	AlzaPrice float64 `json:"alzaOfferPrice,omitempty"`
 }
 
 // HeurekaMatch is the result of mapping an Alza product to Heureka.
@@ -99,13 +101,19 @@ type HeurekaMatch struct {
 	Product      *HeurekaProduct    `json:"product,omitempty"`
 }
 
-// MarketMin is the lowest known market item price (no shipping).
+// MarketMin is the lowest known non-Alza item price (no shipping). Heureka's
+// own minPrice counts only when it is not Alza's offer: not all offers are
+// loaded, but minPrice may be Alza itself.
 func (p *HeurekaProduct) MarketMin() float64 {
-	best := p.MinPrice
+	best := 0.0
 	for _, o := range p.Offers {
 		if o.Price > 0 && (best <= 0 || o.Price < best) {
 			best = o.Price
 		}
+	}
+	alzaIsMin := p.AlzaPrice > 0 && p.MinPrice >= p.AlzaPrice-0.005
+	if p.MinPrice > 0 && !alzaIsMin && (best <= 0 || p.MinPrice < best) {
+		best = p.MinPrice
 	}
 	return best
 }
@@ -312,7 +320,13 @@ func ParseHeurekaProduct(data json.RawMessage) (*HeurekaProduct, error) {
 		p.OfferCount = *r.OfferCount
 	}
 	for _, o := range r.Offers {
-		if o.Price == nil || *o.Price <= 0 || isAlzaShop(o.Shop) {
+		if o.Price == nil || *o.Price <= 0 {
+			continue
+		}
+		if isAlzaShop(o.Shop) {
+			if p.AlzaPrice <= 0 || *o.Price < p.AlzaPrice {
+				p.AlzaPrice = *o.Price
+			}
 			continue
 		}
 		offer := HeurekaOffer{Shop: o.Shop, Name: o.Name, Price: *o.Price, Total: *o.Price}
