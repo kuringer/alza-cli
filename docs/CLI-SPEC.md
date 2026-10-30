@@ -81,6 +81,21 @@ Poznámky:
 - `--with-items` ovplyvňuje text aj JSON output pri bežnom `alza orders`
 - `--query` implicitne vypíše matching položky a v JSON vracia `orders`, `totalCount`, `historyCount`, `query`, `searchesArchiveOnly`
 
+### Zľavy (deals)
+| Command | Popis | Status |
+|---------|-------|--------|
+| `alza deals check <id>` | Alza cena vs Heureka (najlacnejšie 3 ponuky, doprava približne) vs vlastná história, verdikt | ✅ |
+| `alza deals check <id> --no-heureka` | Len história, bez prehliadača | ✅ |
+| `alza deals snapshot [--id N ...] [--no-favorites]` | Uloží dnešné ceny obľúbených + `--id` do histórie | ✅ |
+| `alza deals scan --favorites` | `check` pre všetky obľúbené, zoradené podľa úspory oproti trhu | ✅ |
+
+Poznámky:
+- Verdikt: `skutočná zľava` (Alza <= najlacnejšia ponuka trhu s dopravou, alebo <= najnižšia cena trhu, alebo <= 95 % vlastného 90-dňového mediánu pri aspoň 7 dňoch histórie), `bežná cena` (do +5 % od najnižšej ceny trhu), `drahšie ako trh` (nad +5 %), inak `nedá sa určiť`. Konštanty v `client/deals.go`.
+- Trh = Heureka bez ponúk Alzy. Heureka blokuje HTTP klientov (Cloudflare 403), preto headless Chromium cez Playwright (`client/headless.mjs`, cache `~/.cache/alza/headless`). `ALZA_BROWSER_RUNNER=surf` = surf CLI (`ALZA_SURF_BIN`).
+- Hľadanie: najprv produktové číslo (`catalog_number`), potom názov; skóre zhody < 0.85 alebo podobne silný iný produkt = "uncertain match".
+- História: JSONL `~/.config/alza/price-history.jsonl` (`ALZA_PRICE_HISTORY`), 1 záznam na produkt a deň: `date`, `productId`, `name`, `price`, `comparePrice`. Cena z detailu produktu (zoznam obľúbených ukazuje ceny "od").
+- JSON (`--format=json`): `alzaPrice`, `comparePrice`, `claimedDiscountPercent`, `market` (`marketMin`, `cheapestTotalApprox`, `cheapest[]`, `certain`, `matchScore`), `history30`, `history90`, `savingVsMarket`, `verdict` (`verdict`, `label`, `reason`, `missing[]`).
+
 ## 4. Globálne flagy
 
 | Flag | Popis | Default |

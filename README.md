@@ -109,6 +109,37 @@ Notes:
 - non-query JSON includes `items` only with `--with-items`
 - query JSON includes `orders`, `totalCount`, `historyCount`, `query`, `searchesArchiveOnly`
 
+## Deals: is the discount real?
+
+Alza often shows a big discount against a crossed-out price. `alza deals`
+compares the Alza price with the market (Heureka.sk) and with your own price
+history.
+
+```bash
+alza deals check 1234567              # Alza vs Heureka vs history, one verdict
+alza deals check 1234567 --no-heureka # history only, no browser
+alza deals check 1234567 --format=json
+alza deals snapshot --id 1234567      # store today's prices (favorites + --id)
+alza deals scan --favorites           # check all favorites, biggest saving first
+```
+
+Verdicts: `skutočná zľava` (Alza <= cheapest market offer incl. shipping, or
+<= 95 % of its own 90-day median), `bežná cena` (within 5 % of the market
+minimum), `drahšie ako trh` (more than 5 % above it). The output lists missing
+data (no Heureka match, uncertain match, less than 7 days of history).
+
+Notes:
+- Heureka blocks plain HTTP clients, so pages are read in headless Chromium
+  (Playwright, no window). First use installs it into `~/.cache/alza/headless`
+  (~100 MB, needs Node.js). `ALZA_BROWSER_RUNNER=surf` uses the surf CLI
+  instead (`ALZA_SURF_BIN` = binary path).
+- Shipping prices from Heureka are approximate (free-shipping thresholds).
+- History: `~/.config/alza/price-history.jsonl` (override `ALZA_PRICE_HISTORY`),
+  one record per product per day. `check` and `scan` also record today's price
+  (`--no-record` to skip). Run `snapshot` daily (cron) to build history.
+- Matching uses the Alza part number first, then the name. A weak match is
+  marked "uncertain match".
+
 ## QuickBuy (⚠️ Dangerous)
 
 One-click ordering to AlzaBox with saved payment card.

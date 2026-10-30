@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `alza deals check <id>`: is an Alza discount real? Compares the Alza price
+  (and its crossed-out price) with the Heureka.sk market (cheapest 3 offers,
+  approx. shipping, Alza excluded) and the own price history, prints one
+  verdict and the missing data.
+- `alza deals snapshot`: stores today's prices of favorites and `--id`
+  products in `~/.config/alza/price-history.jsonl`.
+- `alza deals scan --favorites`: check for every favorite, sorted by saving.
+- Product detail and list items expose `comparePrice`, `priceHeader`,
+  `catalogNumber`; list items also `id`, `name`, `price`.
+
 ## [0.7.0] - 2026-10-30
 
 ### Fixed
