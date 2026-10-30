@@ -15,8 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `alza deals snapshot`: stores today's prices of favorites and `--id`
   products in `~/.config/alza/price-history.jsonl`.
 - `alza deals scan --favorites`: check for every favorite, sorted by saving.
+- `alza deals browse`: wide search over a deal listing (default Black Friday,
+  any alza.sk listing via `--url`). Reads N listing pages without login,
+  pre-filters (claimed %, rating, reviews, price, name, used items), ranks by
+  claimed saving in EUR and checks the top N on Heureka; the table compares
+  the claimed % with the real % vs market. `--format json`.
 - Product detail and list items expose `comparePrice`, `priceHeader`,
   `catalogNumber`; list items also `id`, `name`, `price`.
+
+### Changed
+- Heureka lookups share one headless browser (new context per page, 3 pages
+  at once in `browse`) instead of a browser start per page.
+- `savingVsMarket` in deals JSON is rounded to cents.
 
 ## [0.7.0] - 2026-10-30
 

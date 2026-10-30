@@ -121,7 +121,21 @@ alza deals check 1234567 --no-heureka # history only, no browser
 alza deals check 1234567 --format=json
 alza deals snapshot --id 1234567      # store today's prices (favorites + --id)
 alza deals scan --favorites           # check all favorites, biggest saving first
+alza deals browse                     # Black Friday: top 20 deals checked on Heureka
+alza deals browse --check 0 --query lego   # pre-filter only, no browser
+alza deals browse --url https://www.alza.sk/notebooky/18842920.htm --sort sales --min-discount 10
 ```
+
+`deals browse` reads a whole deal listing, not only your favorites. It loads
+`--pages` listing pages (default 10 x 24 products, sorted by discount), keeps
+products that pass the cheap filter (`--min-discount 20`, `--min-reviews 10`,
+`--min-rating`, `--min-price`, `--max-price`, `--query`; used "bazar" items
+only with `--used`), ranks them by the saving Alza claims in EUR and checks the
+top `--check` (default 20) on Heureka. The table is sorted by real saving vs
+market and shows the claimed % next to the real % (negative = Alza is more
+expensive). A `?` marks an uncertain Heureka match. Listing pages need no
+login; with a token the check also uses part numbers (more certain matches).
+20 products take about 1 minute (one headless browser, 3 pages at once).
 
 Verdicts: `skutočná zľava` (Alza <= cheapest market offer incl. shipping, or
 <= 95 % of its own 90-day median), `bežná cena` (within 5 % of the market
@@ -141,6 +155,7 @@ Notes:
   (`--no-record` to skip). Run `snapshot` daily (cron) to build history.
 - Matching uses the Alza part number first, then the name. A weak match is
   marked "uncertain match".
+- `browse` only reads your price history (it does not record listing prices).
 
 ## QuickBuy (⚠️ Dangerous)
 

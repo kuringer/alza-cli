@@ -447,6 +447,24 @@ GET /api/catalog/v1/homePage/categories/{categoryId}/promoSections?country=SK
 Host: www.alza.sk
 ```
 
+### Listing Filter (produkty zoznamu, bez prihlásenia)
+Tlačidlo "24 ďalších" na zozname (Black Friday, kategória, akcie). Odpoveď `d.Boxes` = HTML boxy `.browsingitem` (`data-id`, `data-code`, `a.name`, `.js-price-box__primary-price__value`, `.js-compare-price` alebo `.ads-pb__original-price` "Ušetríte X €", `.ads-pb__header` "BLACK FRIDAY -N %", `.star-rating-block__value`, `.star-rating-block__count`), `d.Count` = počet produktov zoznamu. 24 boxov na stranu; strana N = `page: N, pageTo: N`.
+
+```
+POST /Services/EShopService.svc/Filter
+Host: www.alza.sk
+Content-Type: application/json; charset=UTF-8
+
+{"idCategory":1,"categoryType":29,"idPrefix":0,"prefixType":3,"configurationId":9,
+ "page":3,"pageTo":3,"sort":11,"append":false,"branchId":-2,"minPrice":-1,"maxPrice":-1,
+ "producers":"","parameters":[],"commodityWears":[],"cashbackCodeStyleVariant":2,
+ "hash":"#f&cud=0&pg=3&prod=","counter":1, ...}
+```
+
+- `idCategory`, `categoryType`, `idPrefix`, `prefixType`, `configurationId`: z `var _pageData = {...}` na stránke zoznamu (`categoryId`, `configurationId`, `data.categoryTypeId`, `data.idPrefix`, `data.prefixType`). Black Friday: 1 / 29 / 0 / 3 / 9.
+- `sort` (`data-sort` na stránke): 0 Odporúčame, 7 Najpredávanejšie, 11 Podľa zľavy, 1 Najlacnejšie, 2 Najdrahšie, 6 Podľa recenzií, 19 Najnovšie.
+- tls-client prejde; Cloudflare občas vráti prvú odpoveď ako challenge (403 alebo HTML namiesto JSON), opakovanie s cookies prejde. Odkazy `...-p2.htm` vracajú chybovú stránku.
+
 ### Category Products
 Produkty v kategórii (cez REST service).
 

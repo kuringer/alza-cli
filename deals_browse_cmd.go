@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"sort"
 	"sync"
@@ -324,7 +325,7 @@ func realDiscount(r dealReport) *float64 {
 	if r.SavingVsMarket == nil || ref <= 0 {
 		return nil
 	}
-	v := *r.SavingVsMarket / ref * 100
+	v := math.Round(*r.SavingVsMarket/ref*1000) / 10
 	return &v
 }
 
@@ -347,7 +348,8 @@ func printBrowseTable(w io.Writer, rows []browseRow) {
 	fmt.Fprintf(w, "%-18s %9s %10s %9s %7s %7s  %s\n", "VERDIKT", "ALZA", "TRH*", "ÚSPORA", "UVÁDZA", "REÁLNE", "PRODUKT")
 	for _, r := range rows {
 		market, saving, real := "-", "-", "-"
-		if ref := marketRef(r.dealReport); ref > 0 {
+		ref := marketRef(r.dealReport)
+		if ref > 0 {
 			market = fmt.Sprintf("%.2f", ref)
 			if !r.Market.Certain || r.Market.MinUnverified {
 				market += "?"
@@ -355,9 +357,10 @@ func printBrowseTable(w io.Writer, rows []browseRow) {
 		}
 		if r.SavingVsMarket != nil {
 			saving = fmt.Sprintf("%+.2f", *r.SavingVsMarket)
-		}
-		if r.RealDiscount != nil {
-			real = fmt.Sprintf("%.0f %%", *r.RealDiscount)
+			if ref > 0 {
+				// From the raw ratio: the 1-decimal JSON value would round twice.
+				real = fmt.Sprintf("%.0f %%", *r.SavingVsMarket/ref*100)
+			}
 		}
 		claimed := "-"
 		if r.ClaimedDiscount > 0 {

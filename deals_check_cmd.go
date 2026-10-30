@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"sort"
 	"strings"
@@ -131,7 +132,7 @@ func buildDealReport(ctx context.Context, s dealSubject, market marketLooker, hi
 				ref = in.MarketMin
 			}
 			if ref > 0 && s.Price > 0 {
-				saving := ref - s.Price
+				saving := math.Round((ref-s.Price)*100) / 100
 				r.SavingVsMarket = &saving
 			}
 		}

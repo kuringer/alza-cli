@@ -88,6 +88,7 @@ Poznámky:
 | `alza deals check <id> --no-heureka` | Len história, bez prehliadača | ✅ |
 | `alza deals snapshot [--id N ...] [--no-favorites]` | Uloží dnešné ceny obľúbených + `--id` do histórie | ✅ |
 | `alza deals scan --favorites` | `check` pre všetky obľúbené, zoradené podľa úspory oproti trhu | ✅ |
+| `alza deals browse [--url URL] [--sort S] [--pages N] [filtre] [--check N]` | Široké hľadanie v akciovom zozname (default Black Friday): predfilter, poradie podľa uvádzanej úspory v EUR, `check` pre top N | ✅ |
 
 Poznámky:
 - Verdikt: `skutočná zľava` (Alza <= najlacnejšia ponuka trhu s dopravou, alebo <= najnižšia cena trhu, alebo <= 95 % vlastného 90-dňového mediánu pri aspoň 7 dňoch histórie), `bežná cena` (do +5 % od najnižšej ceny trhu), `drahšie ako trh` (nad +5 %), `neisté porovnanie` (neistá zhoda alebo cena trhu bez overeného obchodu; výsledok trhu len ako náznak v dôvode), inak `nedá sa určiť`. Konštanty v `client/deals.go`.
@@ -95,6 +96,9 @@ Poznámky:
 - Heureka blokuje HTTP klientov (Cloudflare 403), preto headless Chromium cez Playwright (`client/headless.mjs`, cache `~/.cache/alza/headless`; prvá inštalácia má vlastný 5 min limit mimo 30 s limitu stránky). `ALZA_BROWSER_RUNNER=surf` = surf CLI (`ALZA_SURF_BIN`).
 - Hľadanie: najprv produktové číslo (`catalog_number`), potom názov; skóre zhody < 0.85 alebo podobne silný iný produkt = "uncertain match".
 - História: JSONL `~/.config/alza/price-history.jsonl` (`ALZA_PRICE_HISTORY`), 1 záznam na produkt a deň: `date`, `productId`, `name`, `price`, `comparePrice`. Cena z detailu produktu (zoznam obľúbených ukazuje ceny "od").
+- `browse`: `--url` = ľubovoľný zoznam na alza.sk (Black Friday, kategória, "Cenové bomby"); identifikátory zoznamu sa čítajú z `_pageData` stránky. `--sort` = `discount` (default), `recommended`, `sales`, `rating`, `cheapest`, `expensive`, `newest`. `--pages` (default 10, 24 produktov na stranu). Filtre: `--min-discount` (default 20, % podľa Alzy), `--min-reviews` (default 10), `--min-rating`, `--min-price`, `--max-price` (0 = bez limitu), `--query` (názov obsahuje, bez ohľadu na veľkosť písmen a diakritiku), `--used` (zahrnie bazár, inak vynechaný). `--check N` (default 20, 0 = bez prehliadača) = Heureka pre top N podľa uvádzanej úspory v EUR; 3 naraz v jednom headless prehliadači (nový kontext na stránku), 1 s pauza na workera. `--limit` = počet riadkov kandidátov v texte pri `--check 0`.
+- `browse` tabuľka: `VERDIKT`, `ALZA`, `TRH*` (najlacnejšia ponuka s dopravou, `?` = neistá zhoda), `ÚSPORA` (EUR oproti trhu), `UVÁDZA` (% zľava podľa Alzy), `REÁLNE` (% pod trhom, záporné = drahšie). Zoradené podľa úspory oproti trhu. Bez Alza tokenu hľadá Heureka len podľa názvu. Do histórie cien nezapisuje.
+- `browse` JSON: `listing`, `sort`, `listingTotal`, `pagesRead`, `scanned`, `candidates[]` (`productId`, `code`, `name`, `url`, `price`, `comparePrice`, `claimedDiscountPercent`, `label`, `rating`, `reviewCount`, `used`), `checked[]` (polia ako `check` + `url`, `realDiscountPercent`), `warnings[]`, `seconds`.
 - JSON (`--format=json`): `alzaPrice`, `comparePrice`, `claimedDiscountPercent`, `market` (`marketMin`, `cheapestTotalApprox`, `cheapest[]`, `certain`, `matchScore`), `history30`, `history90`, `savingVsMarket`, `verdict` (`verdict`, `label`, `reason`, `missing[]`).
 
 ## 4. Globálne flagy
