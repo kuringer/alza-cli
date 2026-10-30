@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.0] - 2026-10-30
 
 ### Fixed
 - `alza quickbuy` always reported success even when the card charge had not
@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - `main.go` split into per-command files (no behavior change).
+- Dependencies: kong 1.15.0, tls-client 1.14.0, fhttp 0.6.8, x/net 0.53.0
+  (Go 1.25). CI and release take the Go version from `go.mod`; codecov-action
+  v6, goreleaser-action v7.
+- CI was red since 0.6.0 because of unformatted `client/endpoints.go`.
 
 ## [0.6.0] - 2026-07-29
 

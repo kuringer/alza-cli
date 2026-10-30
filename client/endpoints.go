@@ -29,9 +29,9 @@ const (
 	EndpointProductAvailabilityAnon = "/api/productAvailability/v1/anonymous/products/%d?country=SK"
 
 	EndpointFastOrderGetDialog = "/Services/EShopService.svc/FastOrderGetDialog"
-	EndpointFastOrderSave = "/Services/EShopService.svc/FastOrderSave"
-	EndpointFastOrderSend = "/Services/EShopService.svc/FastOrderSend"
-	EndpointPaymentRepeat = "/api/payment/v3/recurrent"
+	EndpointFastOrderSave      = "/Services/EShopService.svc/FastOrderSave"
+	EndpointFastOrderSend      = "/Services/EShopService.svc/FastOrderSend"
+	EndpointPaymentRepeat      = "/api/payment/v3/recurrent"
 
 	// Review endpoints (webapi.alza.cz)
 	EndpointReviewStats = "https://webapi.alza.cz/api/catalog/v2/commodities/%d/reviewStats?country=SK&ucik=x&pgrik=x"
