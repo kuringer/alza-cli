@@ -18,6 +18,9 @@ const (
 	EndpointOrderUpdate    = "/Services/EShopService.svc/OrderUpdate?country=SK"
 
 	EndpointSearchService = "/Services/RestService.svc/v5/search"
+
+	// Listing pages (category, Black Friday): product boxes as HTML, no auth.
+	EndpointCatalogFilter = "/Services/EShopService.svc/Filter"
 	EndpointWhisperAnon   = "https://webapi.alza.cz/api/anonymous/search/whisperer/v1/whisper"
 	EndpointWhisperUser   = "https://webapi.alza.cz/api/users/%s/search/whisperer/v1/whisper"
 
