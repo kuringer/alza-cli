@@ -117,3 +117,59 @@ func formatOrdersText(orders []client.Order, total int, query string, withItems 
 
 	return b.String()
 }
+
+// === ORDERS ===
+
+type OrdersCmd struct {
+	Limit     int    `help:"Max orders to show" default:"10" short:"n"`
+	WithItems bool   `help:"Show item lines under each order" name:"with-items"`
+	Query     string `help:"Filter past orders by item name"`
+}
+
+func (c *OrdersCmd) Run(g *Globals) error {
+	cl, err := newClientWithAutoRefresh(g)
+	if err != nil {
+		return err
+	}
+
+	query := strings.TrimSpace(c.Query)
+	if query != "" {
+		archiveOrders, historyTotal, err := collectArchiveOrders(cl.GetArchiveOrdersPage, archiveOrdersPageSize)
+		if err != nil {
+			return err
+		}
+
+		filtered := filterOrdersByQuery(archiveOrders, query)
+		orders := limitOrders(filtered, c.Limit)
+
+		if g.Format == "json" {
+			outputJSON(map[string]interface{}{
+				"orders":              ordersForJSON(orders, true),
+				"totalCount":          len(filtered),
+				"historyCount":        historyTotal,
+				"query":               query,
+				"searchesArchiveOnly": true,
+			})
+			return nil
+		}
+
+		fmt.Print(formatOrdersText(orders, len(filtered), query, true))
+		return nil
+	}
+
+	orders, total, err := cl.GetOrders(c.Limit)
+	if err != nil {
+		return err
+	}
+
+	if g.Format == "json" {
+		outputJSON(map[string]interface{}{
+			"orders":     ordersForJSON(orders, c.WithItems),
+			"totalCount": total,
+		})
+		return nil
+	}
+
+	fmt.Print(formatOrdersText(orders, total, "", c.WithItems))
+	return nil
+}
