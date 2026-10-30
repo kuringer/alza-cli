@@ -162,6 +162,21 @@ func NewHeureka() (*Heureka, error) {
 	return &Heureka{Surf: s}, nil
 }
 
+// NewHeurekaShared is NewHeureka for many lookups: the headless runner keeps
+// one browser for all pages (safe for concurrent Lookup calls). Call close
+// when done.
+func NewHeurekaShared() (h *Heureka, closeFn func(), err error) {
+	s, err := NewBrowserRunner()
+	if err != nil {
+		return nil, nil, err
+	}
+	if hr, ok := s.(*HeadlessRunner); ok {
+		session := hr.Session()
+		return &Heureka{Surf: session}, func() { _ = session.Close() }, nil
+	}
+	return &Heureka{Surf: s}, func() {}, nil
+}
+
 // HeurekaSearchURL returns the search page URL for a query.
 func (h *Heureka) HeurekaSearchURL(query string) string {
 	base := h.BaseURL

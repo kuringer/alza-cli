@@ -77,7 +77,7 @@ func (h *HeadlessRunner) Prepare(ctx context.Context) error {
 func (h *HeadlessRunner) install(ctx context.Context) error {
 	marker := filepath.Join(h.Dir, ".ready-"+playwrightVersion)
 	if _, err := os.Stat(marker); err == nil {
-		return os.WriteFile(filepath.Join(h.Dir, "run.mjs"), headlessScript, 0o600)
+		return h.writeScripts()
 	}
 	if err := os.MkdirAll(h.Dir, 0o700); err != nil {
 		return err
@@ -99,10 +99,18 @@ func (h *HeadlessRunner) install(ctx context.Context) error {
 			return fmt.Errorf("%s: %w: %s", strings.Join(s, " "), err, snippet(out, 300))
 		}
 	}
-	if err := os.WriteFile(filepath.Join(h.Dir, "run.mjs"), headlessScript, 0o600); err != nil {
+	if err := h.writeScripts(); err != nil {
 		return err
 	}
 	return os.WriteFile(marker, nil, 0o600)
+}
+
+// writeScripts refreshes the embedded page runners in the cache dir.
+func (h *HeadlessRunner) writeScripts() error {
+	if err := os.WriteFile(filepath.Join(h.Dir, "run.mjs"), headlessScript, 0o600); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(h.Dir, "serve.mjs"), headlessServeScript, 0o600)
 }
 
 // Extract implements SurfRunner.

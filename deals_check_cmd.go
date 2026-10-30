@@ -169,22 +169,25 @@ func recordAndReadHistory(subjects []dealSubject, now time.Time, skip bool) ([]c
 	return client.ReadPriceHistory(path)
 }
 
-func newMarket(skip bool) (marketLooker, error) {
+// newMarket returns the Heureka looker (nil when skip) and its close func.
+// All lookups share one headless browser.
+func newMarket(skip bool) (marketLooker, func(), error) {
 	if skip {
-		return nil, nil
+		return nil, func() {}, nil
 	}
-	h, err := client.NewHeureka()
+	h, closeFn, err := client.NewHeurekaShared()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return h, nil
+	return h, closeFn, nil
 }
 
 func (c *DealsCheckCmd) Run(g *Globals) error {
-	market, err := newMarket(c.NoHeureka)
+	market, closeMarket, err := newMarket(c.NoHeureka)
 	if err != nil {
 		return err
 	}
+	defer closeMarket()
 	cl, err := newClientWithAutoRefresh(g)
 	if err != nil {
 		return err
@@ -210,10 +213,11 @@ func (c *DealsCheckCmd) Run(g *Globals) error {
 }
 
 func (c *DealsScanCmd) Run(g *Globals) error {
-	market, err := newMarket(c.NoHeureka)
+	market, closeMarket, err := newMarket(c.NoHeureka)
 	if err != nil {
 		return err
 	}
+	defer closeMarket()
 	cl, err := newClientWithAutoRefresh(g)
 	if err != nil {
 		return err
