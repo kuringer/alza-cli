@@ -90,8 +90,9 @@ Poznámky:
 | `alza deals scan --favorites` | `check` pre všetky obľúbené, zoradené podľa úspory oproti trhu | ✅ |
 
 Poznámky:
-- Verdikt: `skutočná zľava` (Alza <= najlacnejšia ponuka trhu s dopravou, alebo <= najnižšia cena trhu, alebo <= 95 % vlastného 90-dňového mediánu pri aspoň 7 dňoch histórie), `bežná cena` (do +5 % od najnižšej ceny trhu), `drahšie ako trh` (nad +5 %), inak `nedá sa určiť`. Konštanty v `client/deals.go`.
-- Trh = Heureka bez ponúk Alzy. Heureka blokuje HTTP klientov (Cloudflare 403), preto headless Chromium cez Playwright (`client/headless.mjs`, cache `~/.cache/alza/headless`). `ALZA_BROWSER_RUNNER=surf` = surf CLI (`ALZA_SURF_BIN`).
+- Verdikt: `skutočná zľava` (Alza <= najlacnejšia ponuka trhu s dopravou, alebo <= najnižšia cena trhu, alebo <= 95 % vlastného 90-dňového mediánu pri aspoň 7 dňoch histórie), `bežná cena` (do +5 % od najnižšej ceny trhu), `drahšie ako trh` (nad +5 %), `neisté porovnanie` (neistá zhoda alebo cena trhu bez overeného obchodu; výsledok trhu len ako náznak v dôvode), inak `nedá sa určiť`. Konštanty v `client/deals.go`.
+- Trh = najnižšia načítaná ponuka iného obchodu ako Alza. Súhrnná `minPrice` Heureky bez obchodu len ako neoverená záloha.
+- Heureka blokuje HTTP klientov (Cloudflare 403), preto headless Chromium cez Playwright (`client/headless.mjs`, cache `~/.cache/alza/headless`; prvá inštalácia má vlastný 5 min limit mimo 30 s limitu stránky). `ALZA_BROWSER_RUNNER=surf` = surf CLI (`ALZA_SURF_BIN`).
 - Hľadanie: najprv produktové číslo (`catalog_number`), potom názov; skóre zhody < 0.85 alebo podobne silný iný produkt = "uncertain match".
 - História: JSONL `~/.config/alza/price-history.jsonl` (`ALZA_PRICE_HISTORY`), 1 záznam na produkt a deň: `date`, `productId`, `name`, `price`, `comparePrice`. Cena z detailu produktu (zoznam obľúbených ukazuje ceny "od").
 - JSON (`--format=json`): `alzaPrice`, `comparePrice`, `claimedDiscountPercent`, `market` (`marketMin`, `cheapestTotalApprox`, `cheapest[]`, `certain`, `matchScore`), `history30`, `history90`, `savingVsMarket`, `verdict` (`verdict`, `label`, `reason`, `missing[]`).

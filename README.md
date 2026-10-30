@@ -125,8 +125,10 @@ alza deals scan --favorites           # check all favorites, biggest saving firs
 
 Verdicts: `skutočná zľava` (Alza <= cheapest market offer incl. shipping, or
 <= 95 % of its own 90-day median), `bežná cena` (within 5 % of the market
-minimum), `drahšie ako trh` (more than 5 % above it). The output lists missing
-data (no Heureka match, uncertain match, less than 7 days of history).
+minimum), `drahšie ako trh` (more than 5 % above it), `neisté porovnanie`
+(uncertain Heureka match or market price without a known shop; the market
+result is shown only as a hint). The output lists missing data (no Heureka
+match, uncertain match, less than 7 days of history).
 
 Notes:
 - Heureka blocks plain HTTP clients, so pages are read in headless Chromium
