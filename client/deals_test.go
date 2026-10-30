@@ -13,8 +13,12 @@ func TestDecideDeal(t *testing.T) {
 		wantMissing int
 	}{
 		{"cheaper than market incl. shipping", DealInput{AlzaPrice: 91.9, MarketMin: 126, CheapestTotal: 129.9, HistoryMedian: 100, HistoryRecords: 30}, VerdictRealDiscount, 0},
-		{"equal to cheapest total", DealInput{AlzaPrice: 104, MarketMin: 100, CheapestTotal: 104, HistoryMedian: 104, HistoryRecords: 30}, VerdictRealDiscount, 0},
-		{"at market min, no totals", DealInput{AlzaPrice: 100, MarketMin: 100, HistoryMedian: 100, HistoryRecords: 30}, VerdictRealDiscount, 0},
+		// Regression: matching the market is not a discount (Alza 189 = market 189 was "real").
+		{"equal to cheapest total", DealInput{AlzaPrice: 104, MarketMin: 100, CheapestTotal: 104, HistoryMedian: 104, HistoryRecords: 30}, VerdictNormalPrice, 0},
+		{"at market min, no totals", DealInput{AlzaPrice: 100, MarketMin: 100, HistoryMedian: 100, HistoryRecords: 30}, VerdictNormalPrice, 0},
+		{"4 % under cheapest total", DealInput{AlzaPrice: 191.79, MarketMin: 195, CheapestTotal: 200.48, HistoryMedian: 191.79, HistoryRecords: 30}, VerdictNormalPrice, 0},
+		{"5 % under cheapest total", DealInput{AlzaPrice: 95, MarketMin: 97, CheapestTotal: 100, HistoryMedian: 95, HistoryRecords: 30}, VerdictRealDiscount, 0},
+		{"only cheapest total, above", DealInput{AlzaPrice: 110, CheapestTotal: 100, HistoryMedian: 110, HistoryRecords: 30}, VerdictAboveMarket, 0},
 		{"own history drop", DealInput{AlzaPrice: 95, MarketMin: 92, CheapestTotal: 94, HistoryMedian: 100, HistoryRecords: 30}, VerdictRealDiscount, 0},
 		{"just above history ratio", DealInput{AlzaPrice: 95.5, MarketMin: 92, CheapestTotal: 94, HistoryMedian: 100, HistoryRecords: 30}, VerdictNormalPrice, 0},
 		{"within 5 % above market", DealInput{AlzaPrice: 105, MarketMin: 100, CheapestTotal: 104.5, HistoryMedian: 105, HistoryRecords: 30}, VerdictNormalPrice, 0},

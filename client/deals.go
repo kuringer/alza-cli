@@ -56,8 +56,8 @@ type DealVerdict struct {
 }
 
 // DecideDeal says whether the Alza price is a real discount:
-//   - real discount: Alza <= cheapest market offer (with shipping) or <= market
-//     minimum, or <= DealHistoryRatio of its own 90-day median
+//   - real discount: Alza at least DealMarketTolerance below the cheapest market
+//     offer (with shipping), or <= DealHistoryRatio of its own 90-day median
 //   - normal price: within DealMarketTolerance of the market minimum
 //   - above market: more than DealMarketTolerance over the market minimum
 func DecideDeal(in DealInput) DealVerdict {
@@ -107,20 +107,26 @@ func DecideDeal(in DealInput) DealVerdict {
 
 // decideByMarket compares the Alza price with the market only ("" = no market).
 func decideByMarket(in DealInput) (string, string) {
-	if in.CheapestTotal > 0 && in.AlzaPrice <= in.CheapestTotal {
-		return VerdictRealDiscount, fmt.Sprintf("Alza %.2f <= najlacnejšia ponuka trhu s dopravou %.2f EUR", in.AlzaPrice, in.CheapestTotal)
+	// Matching the market is not a discount: Alza must undercut it by the tolerance.
+	below := 1 - DealMarketTolerance
+	if in.CheapestTotal > 0 && in.AlzaPrice <= in.CheapestTotal*below {
+		return VerdictRealDiscount, fmt.Sprintf("Alza %.2f je o %.0f %% lacnejšia ako najlacnejšia ponuka trhu s dopravou %.2f EUR", in.AlzaPrice, -PercentDiff(in.AlzaPrice, in.CheapestTotal), in.CheapestTotal)
 	}
-	if in.MarketMin <= 0 {
+	if in.MarketMin > 0 && in.AlzaPrice <= in.MarketMin*below {
+		return VerdictRealDiscount, fmt.Sprintf("Alza %.2f je o %.0f %% lacnejšia ako najnižšia cena trhu %.2f EUR", in.AlzaPrice, -PercentDiff(in.AlzaPrice, in.MarketMin), in.MarketMin)
+	}
+	ref := in.MarketMin
+	if ref <= 0 {
+		ref = in.CheapestTotal
+	}
+	if ref <= 0 {
 		return "", ""
 	}
-	if in.AlzaPrice <= in.MarketMin {
-		return VerdictRealDiscount, fmt.Sprintf("Alza %.2f <= najnižšia cena trhu %.2f EUR", in.AlzaPrice, in.MarketMin)
+	diff := PercentDiff(in.AlzaPrice, ref)
+	if in.AlzaPrice > ref*(1+DealMarketTolerance) {
+		return VerdictAboveMarket, fmt.Sprintf("Alza o %.0f %% drahšia ako najnižšia cena trhu %.2f EUR", diff, ref)
 	}
-	diff := PercentDiff(in.AlzaPrice, in.MarketMin)
-	if in.AlzaPrice > in.MarketMin*(1+DealMarketTolerance) {
-		return VerdictAboveMarket, fmt.Sprintf("Alza o %.0f %% drahšia ako najnižšia cena trhu %.2f EUR", diff, in.MarketMin)
-	}
-	return VerdictNormalPrice, fmt.Sprintf("Alza do %.0f %% od najnižšej ceny trhu %.2f EUR (%+.0f %%)", DealMarketTolerance*100, in.MarketMin, diff)
+	return VerdictNormalPrice, fmt.Sprintf("Alza do %.0f %% od ceny trhu %.2f EUR (%+.0f %%)", DealMarketTolerance*100, ref, diff)
 }
 
 // PercentDiff returns (a-b)/b in percent.

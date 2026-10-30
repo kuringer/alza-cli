@@ -91,7 +91,7 @@ Poznámky:
 | `alza deals browse [--url URL] [--sort S] [--pages N] [filtre] [--check N]` | Široké hľadanie v akciovom zozname (default Black Friday): predfilter, poradie podľa uvádzanej úspory v EUR, `check` pre top N | ✅ |
 
 Poznámky:
-- Verdikt: `skutočná zľava` (Alza <= najlacnejšia ponuka trhu s dopravou, alebo <= najnižšia cena trhu, alebo <= 95 % vlastného 90-dňového mediánu pri aspoň 7 dňoch histórie), `bežná cena` (do +5 % od najnižšej ceny trhu), `drahšie ako trh` (nad +5 %), `neisté porovnanie` (neistá zhoda alebo cena trhu bez overeného obchodu; výsledok trhu len ako náznak v dôvode), inak `nedá sa určiť`. Konštanty v `client/deals.go`.
+- Verdikt: `skutočná zľava` (Alza aspoň o 5 % lacnejšia ako najlacnejšia ponuka trhu s dopravou alebo najnižšia cena trhu, alebo <= 95 % vlastného 90-dňového mediánu pri aspoň 7 dňoch histórie), `bežná cena` (do ±5 % od ceny trhu), `drahšie ako trh` (nad +5 %), `neisté porovnanie` (neistá zhoda alebo cena trhu bez overeného obchodu; výsledok trhu len ako náznak v dôvode), inak `nedá sa určiť`. Konštanty v `client/deals.go`.
 - Trh = najnižšia načítaná ponuka iného obchodu ako Alza. Súhrnná `minPrice` Heureky bez obchodu len ako neoverená záloha.
 - Heureka blokuje HTTP klientov (Cloudflare 403), preto headless Chromium cez Playwright (`client/headless.mjs`, cache `~/.cache/alza/headless`; prvá inštalácia má vlastný 5 min limit mimo 30 s limitu stránky). `ALZA_BROWSER_RUNNER=surf` = surf CLI (`ALZA_SURF_BIN`).
 - Hľadanie: najprv produktové číslo (`catalog_number`), potom názov; skóre zhody < 0.85 alebo podobne silný iný produkt = "uncertain match".

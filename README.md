@@ -138,9 +138,9 @@ expensive). A `?` marks an uncertain Heureka match; `[bazár]` marks used items
 login; with a token the check also uses part numbers (more certain matches).
 20 products take about 1 minute (one headless browser, 3 pages at once).
 
-Verdicts: `skutočná zľava` (Alza <= cheapest market offer incl. shipping, or
-<= 95 % of its own 90-day median), `bežná cena` (within 5 % of the market
-minimum), `drahšie ako trh` (more than 5 % above it), `neisté porovnanie`
+Verdicts: `skutočná zľava` (Alza at least 5 % below the cheapest market offer
+incl. shipping, or <= 95 % of its own 90-day median), `bežná cena` (within
+5 % of the market), `drahšie ako trh` (more than 5 % above it), `neisté porovnanie`
 (uncertain Heureka match or market price without a known shop; the market
 result is shown only as a hint). The output lists missing data (no Heureka
 match, uncertain match, less than 7 days of history).
