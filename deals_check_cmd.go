@@ -54,6 +54,7 @@ type dealMarket struct {
 	MatchReason   string                `json:"matchReason,omitempty"`
 	HeurekaMin    float64               `json:"heurekaMinPrice"`
 	MarketMin     float64               `json:"marketMin"`
+	MinUnverified bool                  `json:"marketMinUnverified,omitempty"`
 	CheapestTotal float64               `json:"cheapestTotalApprox"`
 	OfferCount    int                   `json:"offerCount"`
 	Cheapest      []client.HeurekaOffer `json:"cheapest"`
@@ -101,15 +102,20 @@ func buildDealReport(ctx context.Context, s dealSubject, market marketLooker, hi
 		if err != nil {
 			r.MarketError = err.Error()
 		}
-		if m != nil && m.Product != nil && m.Product.MarketMin() <= 0 {
+		var marketMin float64
+		var unverified bool
+		if m != nil && m.Product != nil {
+			marketMin, unverified = m.Product.MarketPrice(s.Price)
+		}
+		if m != nil && m.Product != nil && marketMin <= 0 {
 			r.MarketError = fmt.Sprintf("na Heureke nie je iná ponuka ako Alza (%s)", m.Product.URL)
 		} else if m != nil && m.Product != nil {
 			p := m.Product
 			r.Market = &dealMarket{
 				Query: m.Query, Name: p.Name, URL: p.URL, Certain: m.Certain,
 				MatchScore: m.Candidate.Score, MatchReason: m.Candidate.Reason,
-				HeurekaMin: p.MinPrice, MarketMin: p.MarketMin(), CheapestTotal: p.CheapestTotal(),
-				OfferCount: p.OfferCount,
+				HeurekaMin: p.MinPrice, MarketMin: marketMin, MinUnverified: unverified,
+				CheapestTotal: p.CheapestTotal(), OfferCount: p.OfferCount,
 			}
 			if len(p.Offers) > dealsCheapestShown {
 				r.Market.Cheapest = p.Offers[:dealsCheapestShown]
@@ -119,6 +125,7 @@ func buildDealReport(ctx context.Context, s dealSubject, market marketLooker, hi
 			in.MarketMin = r.Market.MarketMin
 			in.CheapestTotal = r.Market.CheapestTotal
 			in.MarketUncertain = !m.Certain
+			in.MarketMinUnverified = unverified
 			ref := in.CheapestTotal
 			if ref <= 0 {
 				ref = in.MarketMin
@@ -277,7 +284,9 @@ func printDealReport(w io.Writer, r dealReport) {
 
 	if m := r.Market; m != nil {
 		fmt.Fprintf(w, "Heureka:   min %s", formatEUR(m.MarketMin))
-		if m.HeurekaMin > 0 && m.HeurekaMin != m.MarketMin {
+		if m.MinUnverified {
+			fmt.Fprint(w, " (NEOVERENÉ: súhrnná cena Heureky bez obchodu, môže to byť Alza)")
+		} else if m.HeurekaMin > 0 && m.HeurekaMin != m.MarketMin {
 			fmt.Fprintf(w, " (Heureka uvádza od %s)", formatEUR(m.HeurekaMin))
 		}
 		fmt.Fprintf(w, ", %d ponúk\n", m.OfferCount)
@@ -339,7 +348,7 @@ func formatHistory(r dealReport) string {
 }
 
 func printScanTable(w io.Writer, reports []dealReport) {
-	fmt.Fprintf(w, "%-16s %10s %10s %10s  %s\n", "VERDIKT", "ALZA", "TRH*", "ÚSPORA", "PRODUKT")
+	fmt.Fprintf(w, "%-18s %10s %10s %10s  %s\n", "VERDIKT", "ALZA", "TRH*", "ÚSPORA", "PRODUKT")
 	for _, r := range reports {
 		market, saving := "-", "-"
 		if r.Market != nil {
@@ -348,16 +357,16 @@ func printScanTable(w io.Writer, reports []dealReport) {
 				ref = r.Market.MarketMin
 			}
 			market = fmt.Sprintf("%.2f", ref)
-			if !r.Market.Certain {
+			if !r.Market.Certain || r.Market.MinUnverified {
 				market += "?"
 			}
 		}
 		if r.SavingVsMarket != nil {
 			saving = fmt.Sprintf("%+.2f", *r.SavingVsMarket)
 		}
-		fmt.Fprintf(w, "%-16s %10.2f %10s %10s  %s (%d)\n", r.Verdict.Label, r.AlzaPrice, market, saving, truncate(r.Name, 50), r.ProductID)
+		fmt.Fprintf(w, "%-18s %10.2f %10s %10s  %s (%d)\n", r.Verdict.Label, r.AlzaPrice, market, saving, truncate(r.Name, 50), r.ProductID)
 	}
-	fmt.Fprintln(w, "* najlacnejšia ponuka na Heureke s približnou dopravou; ? = neistá zhoda produktu")
+	fmt.Fprintln(w, "* najlacnejšia ponuka na Heureke s približnou dopravou; ? = neistá zhoda produktu alebo neoverená cena")
 }
 
 func truncate(s string, n int) string {

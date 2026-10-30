@@ -22,6 +22,7 @@ const (
 	VerdictRealDiscount = "real_discount"
 	VerdictNormalPrice  = "normal_price"
 	VerdictAboveMarket  = "above_market"
+	VerdictUncertain    = "uncertain_comparison"
 	VerdictUnknown      = "unknown"
 )
 
@@ -30,6 +31,7 @@ var VerdictLabels = map[string]string{
 	VerdictRealDiscount: "skutočná zľava",
 	VerdictNormalPrice:  "bežná cena",
 	VerdictAboveMarket:  "drahšie ako trh",
+	VerdictUncertain:    "neisté porovnanie",
 	VerdictUnknown:      "nedá sa určiť",
 }
 
@@ -41,6 +43,8 @@ type DealInput struct {
 	HistoryMedian   float64 // own Alza median over DealHistoryDays
 	HistoryRecords  int
 	MarketUncertain bool // Heureka product match is not certain
+	// MarketMinUnverified: MarketMin is Heureka's minPrice without a known shop.
+	MarketMinUnverified bool
 }
 
 // DealVerdict is the result of DecideDeal.
@@ -61,8 +65,13 @@ func DecideDeal(in DealInput) DealVerdict {
 	hasMarket := in.MarketMin > 0 || in.CheapestTotal > 0
 	if !hasMarket {
 		missing = append(missing, "trhová cena (Heureka)")
-	} else if in.MarketUncertain {
-		missing = append(missing, "istá zhoda na Heureke (porovnanie môže byť s iným produktom)")
+	} else {
+		if in.MarketUncertain {
+			missing = append(missing, "istá zhoda na Heureke (porovnanie môže byť s iným produktom)")
+		}
+		if in.MarketMinUnverified {
+			missing = append(missing, "overená ponuka iného obchodu (cena trhu je súhrnná cena Heureky, môže to byť Alza)")
+		}
 	}
 	hasHistory := in.HistoryMedian > 0 && in.HistoryRecords >= DealMinHistoryRecords
 	if !hasHistory {
@@ -76,26 +85,42 @@ func DecideDeal(in DealInput) DealVerdict {
 	if in.AlzaPrice <= 0 {
 		return v(VerdictUnknown, "chýba cena na Alze")
 	}
-	if in.CheapestTotal > 0 && in.AlzaPrice <= in.CheapestTotal {
-		return v(VerdictRealDiscount, fmt.Sprintf("Alza %.2f <= najlacnejšia ponuka trhu s dopravou %.2f EUR", in.AlzaPrice, in.CheapestTotal))
-	}
-	if in.MarketMin > 0 && in.AlzaPrice <= in.MarketMin {
-		return v(VerdictRealDiscount, fmt.Sprintf("Alza %.2f <= najnižšia cena trhu %.2f EUR", in.AlzaPrice, in.MarketMin))
-	}
-	if hasHistory && in.AlzaPrice <= DealHistoryRatio*in.HistoryMedian {
+	marketCode, marketReason := decideByMarket(in)
+	uncertain := marketCode != "" && (in.MarketUncertain || in.MarketMinUnverified)
+	histDiscount := hasHistory && in.AlzaPrice <= DealHistoryRatio*in.HistoryMedian
+	switch {
+	case marketCode == VerdictRealDiscount && !uncertain:
+		return v(marketCode, marketReason)
+	case histDiscount:
 		return v(VerdictRealDiscount, fmt.Sprintf("Alza %.2f <= %.0f %% vlastného %d-dňového mediánu %.2f EUR", in.AlzaPrice, DealHistoryRatio*100, DealHistoryDays, in.HistoryMedian))
-	}
-	if in.MarketMin > 0 {
-		diff := PercentDiff(in.AlzaPrice, in.MarketMin)
-		if in.AlzaPrice > in.MarketMin*(1+DealMarketTolerance) {
-			return v(VerdictAboveMarket, fmt.Sprintf("Alza o %.0f %% drahšia ako najnižšia cena trhu %.2f EUR", diff, in.MarketMin))
-		}
-		return v(VerdictNormalPrice, fmt.Sprintf("Alza do %.0f %% od najnižšej ceny trhu %.2f EUR (%+.0f %%)", DealMarketTolerance*100, in.MarketMin, diff))
+	case uncertain:
+		// A weak match must not give a confident verdict: show it only as a hint.
+		return v(VerdictUncertain, fmt.Sprintf("trh nie je istý; podľa Heureky by to bola %s (%s)", VerdictLabels[marketCode], marketReason))
+	case marketCode != "":
+		return v(marketCode, marketReason)
 	}
 	if hasHistory {
 		return v(VerdictNormalPrice, fmt.Sprintf("bez trhu; Alza nad %.0f %% vlastného mediánu %.2f EUR", DealHistoryRatio*100, in.HistoryMedian))
 	}
 	return v(VerdictUnknown, "chýba trhová cena aj história")
+}
+
+// decideByMarket compares the Alza price with the market only ("" = no market).
+func decideByMarket(in DealInput) (string, string) {
+	if in.CheapestTotal > 0 && in.AlzaPrice <= in.CheapestTotal {
+		return VerdictRealDiscount, fmt.Sprintf("Alza %.2f <= najlacnejšia ponuka trhu s dopravou %.2f EUR", in.AlzaPrice, in.CheapestTotal)
+	}
+	if in.MarketMin <= 0 {
+		return "", ""
+	}
+	if in.AlzaPrice <= in.MarketMin {
+		return VerdictRealDiscount, fmt.Sprintf("Alza %.2f <= najnižšia cena trhu %.2f EUR", in.AlzaPrice, in.MarketMin)
+	}
+	diff := PercentDiff(in.AlzaPrice, in.MarketMin)
+	if in.AlzaPrice > in.MarketMin*(1+DealMarketTolerance) {
+		return VerdictAboveMarket, fmt.Sprintf("Alza o %.0f %% drahšia ako najnižšia cena trhu %.2f EUR", diff, in.MarketMin)
+	}
+	return VerdictNormalPrice, fmt.Sprintf("Alza do %.0f %% od najnižšej ceny trhu %.2f EUR (%+.0f %%)", DealMarketTolerance*100, in.MarketMin, diff)
 }
 
 // PercentDiff returns (a-b)/b in percent.

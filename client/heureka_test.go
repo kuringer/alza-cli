@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Fixtures mirror the page-script output shape with made-up products and shops.
@@ -84,6 +87,19 @@ func TestParseHeurekaProduct(t *testing.T) {
 		t.Errorf("MarketMin = %v", p.MarketMin())
 	}
 
+	// Regression: without a loaded competing offer, minPrice is only an
+	// unverified fallback, and it is dropped when it equals the Alza price.
+	noOffers := &HeurekaProduct{MinPrice: 50}
+	if got, unv := noOffers.MarketPrice(60); got != 50 || !unv {
+		t.Errorf("fallback = %v, %v; want 50, true", got, unv)
+	}
+	if got, _ := noOffers.MarketPrice(50); got != 0 {
+		t.Errorf("minPrice = Alza price: got %v, want 0", got)
+	}
+	if got, unv := p.MarketPrice(91.9); got != 126 || unv {
+		t.Errorf("verified = %v, %v; want 126, false", got, unv)
+	}
+
 	if p.AlzaPrice != 91.9 {
 		t.Errorf("AlzaPrice = %v", p.AlzaPrice)
 	}
@@ -124,6 +140,10 @@ func TestScoreHeurekaName(t *testing.T) {
 		{"subset name", "Acme Sonic Premium All-in-One HX90/88", "", "Acme Sonic HX90/88", 0.99, 1, "name tokens"},
 		{"subset name, pack size missing", "Acme Sonic Premium HX90/88 2 ks", "", "Acme Sonic HX90/88", 0.85, 0.9, "name tokens"},
 		{"unit spacing and EAN part number", "Acme Kefky 0,6mm Normal - modré 8 ks", "1234567890123", "Acme Normal kefky 0,6 mm 8 ks", 0.99, 1, "name tokens"},
+		// Regression: part number must match whole code tokens, not a substring.
+		{"part number is prefix of longer code", "Acme Unit", "AB1234", "Acme AB12345", 0, 0.5, "name tokens"},
+		{"part number is suffix of longer code", "Acme Unit", "AB1234", "Acme XAB1234", 0, 0.5, "name tokens"},
+		{"part number split by dash", "Acme Unit", "AB1234", "Acme AB-1234", 0.8, 1, "part number"},
 		{"compatible clone", "Acme PG-50 + CL-51 multipack", "5225B013", "Clone Acme PG-50 + CL-51 Multipack - kompatibilný", 0.4, 0.6, "name tokens"},
 		{"unrelated", "Acme LP-2000D", "", "Other Thing 9", 0, 0.01, "name tokens"},
 	}
@@ -263,5 +283,45 @@ func TestNewBrowserRunnerSelection(t *testing.T) {
 	t.Setenv(SurfBinEnv, "/nonexistent/surf-binary")
 	if _, err := NewBrowserRunner(); !errors.Is(err, ErrSurfMissing) {
 		t.Errorf("surf runner: err = %v", err)
+	}
+}
+
+type slowPrepareRunner struct {
+	fakeSurf
+	prepare time.Duration
+}
+
+func (r *slowPrepareRunner) Prepare(ctx context.Context) error {
+	select {
+	case <-time.After(r.prepare):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Regression: a slow first-use setup must not eat the page timeout.
+func TestHeurekaExtractPrepareOutsidePageTimeout(t *testing.T) {
+	r := &slowPrepareRunner{fakeSurf: fakeSurf{pages: map[string]string{"/x/": "[]"}}, prepare: 80 * time.Millisecond}
+	h := &Heureka{Surf: r, Timeout: 20 * time.Millisecond}
+	if _, err := h.extract(context.Background(), "https://example.heureka.sk/x/", ""); err != nil {
+		t.Fatalf("extract: %v", err)
+	}
+}
+
+func TestHeadlessPrepareIgnoresCallerDeadline(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".ready-"+playwrightVersion), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
+	defer cancel()
+	time.Sleep(time.Millisecond)
+	h := &HeadlessRunner{Dir: dir}
+	if err := h.Prepare(ctx); err != nil {
+		t.Fatalf("Prepare with expired caller deadline: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "run.mjs")); err != nil {
+		t.Errorf("run.mjs not written: %v", err)
 	}
 }

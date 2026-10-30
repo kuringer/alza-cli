@@ -24,7 +24,11 @@ func TestDecideDeal(t *testing.T) {
 		{"history only, flat", DealInput{AlzaPrice: 99, HistoryMedian: 100, HistoryRecords: 10}, VerdictNormalPrice, 1},
 		{"no data", DealInput{AlzaPrice: 99}, VerdictUnknown, 2},
 		{"no Alza price", DealInput{MarketMin: 10}, VerdictUnknown, 1},
-		{"uncertain market match", DealInput{AlzaPrice: 50, MarketMin: 60, CheapestTotal: 62, MarketUncertain: true}, VerdictRealDiscount, 2},
+		// Regression: a weak Heureka match must not give a confident verdict.
+		{"uncertain match, market says discount", DealInput{AlzaPrice: 50, MarketMin: 60, CheapestTotal: 62, MarketUncertain: true}, VerdictUncertain, 2},
+		{"uncertain match, market says above", DealInput{AlzaPrice: 80, MarketMin: 60, CheapestTotal: 62, MarketUncertain: true, HistoryMedian: 80, HistoryRecords: 10}, VerdictUncertain, 1},
+		{"unverified market min", DealInput{AlzaPrice: 80, MarketMin: 60, MarketMinUnverified: true}, VerdictUncertain, 2},
+		{"uncertain match, own history drop still counts", DealInput{AlzaPrice: 90, MarketMin: 60, CheapestTotal: 62, MarketUncertain: true, HistoryMedian: 100, HistoryRecords: 10}, VerdictRealDiscount, 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -71,5 +75,12 @@ func TestPercentDiff(t *testing.T) {
 	}
 	if PercentDiff(1, 0) != 0 {
 		t.Error("zero base must give 0")
+	}
+}
+
+func TestDecideDealUncertainKeepsMarketHint(t *testing.T) {
+	got := DecideDeal(DealInput{AlzaPrice: 80, MarketMin: 60, MarketUncertain: true})
+	if !strings.Contains(got.Reason, VerdictLabels[VerdictAboveMarket]) || got.Label != "neisté porovnanie" {
+		t.Errorf("verdict = %+v", got)
 	}
 }

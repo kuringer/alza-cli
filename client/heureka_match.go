@@ -66,6 +66,25 @@ func tokenSet(tokens []string) map[string]bool {
 	return out
 }
 
+// hasCodeTokens reports whether code equals one token or a run of adjacent
+// tokens ("AB-1234" -> "ab"+"1234"). A code inside a longer token
+// ("AB12345" for "AB1234") is a different product and does not count.
+func hasCodeTokens(tokens []string, code string) bool {
+	for i := range tokens {
+		joined := ""
+		for _, t := range tokens[i:] {
+			joined += t
+			if joined == code {
+				return true
+			}
+			if len(joined) >= len(code) || !strings.HasPrefix(code, joined) {
+				break
+			}
+		}
+	}
+	return false
+}
+
 func hasDigit(s string) bool {
 	return strings.IndexFunc(s, unicode.IsDigit) >= 0
 }
@@ -114,7 +133,7 @@ func ScoreHeurekaName(alzaName, partNumber, heurekaName string) (float64, string
 	score := matchPrecisionWeight*precision + matchCodeWeight*codeRecall
 	reason := "name tokens"
 
-	if part != "" && len(part) >= 4 && (hk[part] || strings.Contains(compactName(heurekaName), part)) {
+	if part != "" && len(part) >= 4 && hasCodeTokens(matchTokens(heurekaName), part) {
 		if partScore := 0.8 + 0.2*precision; partScore > score {
 			score, reason = partScore, "part number"
 		}

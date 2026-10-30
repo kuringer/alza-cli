@@ -101,9 +101,8 @@ type HeurekaMatch struct {
 	Product      *HeurekaProduct    `json:"product,omitempty"`
 }
 
-// MarketMin is the lowest known non-Alza item price (no shipping). Heureka's
-// own minPrice counts only when it is not Alza's offer: not all offers are
-// loaded, but minPrice may be Alza itself.
+// MarketMin is the lowest item price (no shipping) among loaded offers of
+// other shops. Offers are verified competitors: Alza is excluded at parse time.
 func (p *HeurekaProduct) MarketMin() float64 {
 	best := 0.0
 	for _, o := range p.Offers {
@@ -111,11 +110,26 @@ func (p *HeurekaProduct) MarketMin() float64 {
 			best = o.Price
 		}
 	}
-	alzaIsMin := p.AlzaPrice > 0 && p.MinPrice >= p.AlzaPrice-0.005
-	if p.MinPrice > 0 && !alzaIsMin && (best <= 0 || p.MinPrice < best) {
-		best = p.MinPrice
-	}
 	return best
+}
+
+// MarketPrice returns MarketMin, or when no competing offer is loaded,
+// Heureka's global minPrice with unverified=true: that price has no shop and
+// may be Alza's own offer. alzaPrice (the price on Alza) rules out the obvious
+// case where minPrice is Alza.
+func (p *HeurekaProduct) MarketPrice(alzaPrice float64) (price float64, unverified bool) {
+	if m := p.MarketMin(); m > 0 {
+		return m, false
+	}
+	for _, a := range []float64{p.AlzaPrice, alzaPrice} {
+		if a > 0 && p.MinPrice >= a-0.005 && p.MinPrice <= a+0.005 {
+			return 0, false
+		}
+	}
+	if p.MinPrice > 0 {
+		return p.MinPrice, true
+	}
+	return 0, false
 }
 
 // CheapestTotal is the lowest price + approx. shipping among loaded offers.
@@ -124,6 +138,11 @@ func (p *HeurekaProduct) CheapestTotal() float64 {
 		return 0
 	}
 	return p.Offers[0].Total
+}
+
+// runnerPreparer is a runner with a slow one-time setup outside the page timeout.
+type runnerPreparer interface {
+	Prepare(ctx context.Context) error
 }
 
 // Heureka maps Alza products to Heureka.sk via a browser (surf).
@@ -153,6 +172,12 @@ func (h *Heureka) HeurekaSearchURL(query string) string {
 }
 
 func (h *Heureka) extract(ctx context.Context, pageURL, script string) (json.RawMessage, error) {
+	// One-time runner setup (e.g. browser install) gets its own deadline.
+	if p, ok := h.Surf.(runnerPreparer); ok {
+		if err := p.Prepare(ctx); err != nil {
+			return nil, err
+		}
+	}
 	timeout := h.Timeout
 	if timeout <= 0 {
 		timeout = 30 * time.Second

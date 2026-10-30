@@ -79,8 +79,11 @@ func TestBuildDealReportUncertainAndErrors(t *testing.T) {
 	r := buildDealReport(context.Background(), testSubject, fakeMarket{match: testMatch(false)}, nil, now)
 	var buf bytes.Buffer
 	printDealReport(&buf, r)
-	if !strings.Contains(buf.String(), "uncertain match") {
-		t.Errorf("want uncertain match note:\n%s", buf.String())
+	if !strings.Contains(buf.String(), "uncertain match") || !strings.Contains(buf.String(), "NEISTÉ POROVNANIE") {
+		t.Errorf("want uncertain match note and verdict:\n%s", buf.String())
+	}
+	if r.Verdict.Code != client.VerdictUncertain {
+		t.Errorf("uncertain match gave verdict %s", r.Verdict.Code)
 	}
 
 	r = buildDealReport(context.Background(), testSubject, fakeMarket{err: errors.New("surf down")}, nil, now)

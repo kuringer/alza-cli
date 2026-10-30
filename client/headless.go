@@ -20,6 +20,10 @@ const BrowserRunnerEnv = "ALZA_BROWSER_RUNNER"
 // playwrightVersion pins the Playwright package installed into the cache dir.
 const playwrightVersion = "1.64.1"
 
+// headlessBootstrapTimeout bounds the first-use npm + Chromium install. It is
+// separate from (and much longer than) the per-page deadline.
+const headlessBootstrapTimeout = 5 * time.Minute
+
 // heurekaReadySelector: page scripts need one of these server-rendered nodes.
 const heurekaReadySelector = "#__NEXT_DATA__, #category-search-state"
 
@@ -30,7 +34,8 @@ var headlessScript []byte
 // No browser window opens. First use installs Playwright and the Chromium
 // headless shell into ~/.cache/alza/headless (~100 MB, ~1 min).
 type HeadlessRunner struct {
-	Dir string
+	Dir      string
+	prepared bool
 }
 
 // NewHeadlessRunner checks node/npm and returns a runner using the cache dir.
@@ -47,7 +52,29 @@ func NewHeadlessRunner() (*HeadlessRunner, error) {
 	return &HeadlessRunner{Dir: filepath.Join(home, ".cache", "alza", "headless")}, nil
 }
 
-func (h *HeadlessRunner) ensure(ctx context.Context) error {
+// Prepare installs Playwright + Chromium on first use. It ignores the caller's
+// deadline (a page timeout must not kill a cold install) and applies
+// headlessBootstrapTimeout instead; cancellation still propagates.
+func (h *HeadlessRunner) Prepare(ctx context.Context) error {
+	if h.prepared {
+		return nil
+	}
+	bctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), headlessBootstrapTimeout)
+	defer cancel()
+	stop := context.AfterFunc(ctx, func() {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			cancel()
+		}
+	})
+	defer stop()
+	if err := h.install(bctx); err != nil {
+		return fmt.Errorf("headless browser setup: %w", err)
+	}
+	h.prepared = true
+	return nil
+}
+
+func (h *HeadlessRunner) install(ctx context.Context) error {
 	marker := filepath.Join(h.Dir, ".ready-"+playwrightVersion)
 	if _, err := os.Stat(marker); err == nil {
 		return os.WriteFile(filepath.Join(h.Dir, "run.mjs"), headlessScript, 0o600)
@@ -59,9 +86,7 @@ func (h *HeadlessRunner) ensure(ctx context.Context) error {
 	if err := os.WriteFile(filepath.Join(h.Dir, "package.json"), []byte(pkg), 0o600); err != nil {
 		return err
 	}
-	fmt.Fprintln(os.Stderr, "Installing Playwright + Chromium headless shell (first run, ~1 min)...")
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
+	fmt.Fprintln(os.Stderr, "installing headless Chromium, ~1 min")
 	steps := [][]string{
 		{"npm", "install", "--silent", "--no-progress", "--no-fund", "--no-audit"},
 		{"npx", "playwright", "install", "chromium-headless-shell"},
@@ -82,8 +107,8 @@ func (h *HeadlessRunner) ensure(ctx context.Context) error {
 
 // Extract implements SurfRunner.
 func (h *HeadlessRunner) Extract(ctx context.Context, pageURL, script string) (json.RawMessage, error) {
-	if err := h.ensure(ctx); err != nil {
-		return nil, fmt.Errorf("headless browser setup: %w", err)
+	if err := h.Prepare(ctx); err != nil {
+		return nil, err
 	}
 	cmd := exec.CommandContext(ctx, "node", "run.mjs", pageURL, heurekaReadySelector) //nolint:gosec
 	cmd.Dir = h.Dir
