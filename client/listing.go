@@ -293,6 +293,12 @@ func (c *ListingClient) ListingPage(l *Listing, sort, page int) ([]ListingItem, 
 	return items, resp.D.Count, err
 }
 
+// NameContains reports whether name contains query, ignoring case and Slovak/Czech diacritics.
+func NameContains(name, query string) bool {
+	fold := func(s string) string { return collapseSpaces(diacriticsFold.Replace(strings.ToLower(s))) }
+	return strings.Contains(fold(name), fold(query))
+}
+
 var labelPercent = regexp.MustCompile(`-\s*(\d{1,2})\s*%`)
 
 // ParseListingBoxes parses `.browsingitem` product boxes (listing HTML).
