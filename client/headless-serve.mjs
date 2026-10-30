@@ -1,5 +1,6 @@
 // One headless Chromium (Playwright, no window) for many page scripts.
-// stdin: one JSON request per line {"id", "url", "ready", "script"}.
+// stdin: one JSON request per line {"id", "url", "ready", "script", "timeoutMs"},
+// or {"id", "cancel": true} to abort a running request.
 // stdout: one JSON line per request {"id", "data"} or {"id", "error": {...}}.
 // Requests run concurrently; the browser closes on stdin EOF. Each request gets
 // a fresh context (no shared cookies): Heureka's bot check (DataDome) answers
@@ -22,21 +23,48 @@ try {
   process.exit(1);
 }
 
+// Total budget of one request (navigation + readiness + script) when the
+// client sends no timeoutMs. The Go side sends one below its own deadline.
+const defaultTimeoutMs = 25000;
+// id -> browser context of running requests; closing it aborts the page.
+const active = new Map();
+const cancelled = new Set();
+const running = new Set();
+
 async function run(req) {
   let ctx;
-  try {
+  let timer;
+  running.add(req.id);
+  const ms = req.timeoutMs > 0 ? req.timeoutMs : defaultTimeoutMs;
+  const t0 = Date.now();
+  const left = () => Math.max(1, ms - (Date.now() - t0));
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`deadline ${ms} ms exceeded`)), ms);
+  });
+  const work = (async () => {
     ctx = await browser.newContext(contextOptions);
+    active.set(req.id, ctx);
+    if (cancelled.has(req.id)) throw new Error('cancelled');
     const page = await ctx.newPage();
-    await page.goto(req.url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await page.goto(req.url, { waitUntil: 'domcontentloaded', timeout: left() });
     if (req.ready) {
-      await page.waitForSelector(req.ready, { state: 'attached', timeout: 15000 }).catch(() => {});
+      await page.waitForSelector(req.ready, { state: 'attached', timeout: Math.min(15000, left()) }).catch(() => {});
     }
     // String expression: evaluated over CDP, not subject to page CSP.
-    const data = await page.evaluate('(() => {' + req.script + '\n})()');
+    return page.evaluate('(() => {' + req.script + '\n})()');
+  })();
+  work.catch(() => {}); // the deadline may win the race; avoid an unhandled rejection
+  try {
+    const data = await Promise.race([work, deadline]);
     out({ id: req.id, data });
   } catch (e) {
-    fail(req.id, e);
+    fail(req.id, cancelled.has(req.id) ? 'cancelled' : e);
   } finally {
+    clearTimeout(timer);
+    running.delete(req.id);
+    active.delete(req.id);
+    cancelled.delete(req.id);
+    // Closing the context also stops a page or evaluate still running.
     if (ctx) await ctx.close().catch(() => {});
   }
 }
@@ -50,6 +78,14 @@ rl.on('line', (line) => {
     req = JSON.parse(line);
   } catch (e) {
     fail(0, e);
+    return;
+  }
+  if (req.cancel) {
+    // The client gave up on this request: free its page now.
+    if (!running.has(req.id)) return;
+    cancelled.add(req.id);
+    const c = active.get(req.id);
+    if (c) c.close().catch(() => {});
     return;
   }
   const p = run(req).finally(() => pending.delete(p));

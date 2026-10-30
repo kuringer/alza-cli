@@ -46,9 +46,31 @@ type sessionReply struct {
 
 type sessionRequest struct {
 	ID     int64  `json:"id"`
-	URL    string `json:"url"`
-	Ready  string `json:"ready"`
-	Script string `json:"script"`
+	URL    string `json:"url,omitempty"`
+	Ready  string `json:"ready,omitempty"`
+	Script string `json:"script,omitempty"`
+	// TimeoutMs is the server-side budget for navigation + readiness + script.
+	TimeoutMs int64 `json:"timeoutMs,omitempty"`
+	// Cancel aborts the running request ID (closes its browser context).
+	Cancel bool `json:"cancel,omitempty"`
+}
+
+// sessionDeadlineMargin: the server gives up this much before the caller's
+// deadline, so its own error (not a bare timeout) reaches the caller.
+const sessionDeadlineMargin = 2 * time.Second
+
+// serverTimeoutMs is the server budget for ctx: its deadline minus the margin
+// (at least 1 s), or 0 (server default) without a deadline.
+func serverTimeoutMs(ctx context.Context) int64 {
+	d, ok := ctx.Deadline()
+	if !ok {
+		return 0
+	}
+	ms := (time.Until(d) - sessionDeadlineMargin).Milliseconds()
+	if ms < 1000 {
+		ms = 1000
+	}
+	return ms
 }
 
 type sessionResponse struct {
@@ -163,7 +185,7 @@ func (s *HeadlessSession) Extract(ctx context.Context, pageURL, script string) (
 	id := s.nextID
 	ch := make(chan sessionReply, 1)
 	s.pending[id] = ch
-	line, err := json.Marshal(sessionRequest{ID: id, URL: pageURL, Ready: heurekaReadySelector, Script: script})
+	line, err := json.Marshal(sessionRequest{ID: id, URL: pageURL, Ready: heurekaReadySelector, Script: script, TimeoutMs: serverTimeoutMs(ctx)})
 	if err == nil {
 		_, err = s.stdin.Write(append(line, '\n'))
 	}
@@ -183,6 +205,12 @@ func (s *HeadlessSession) Extract(ctx context.Context, pageURL, script string) (
 	case <-ctx.Done():
 		s.mu.Lock()
 		delete(s.pending, id)
+		// Tell the server to close the page: an abandoned page must not keep running.
+		if s.dead == nil {
+			if cancel, err := json.Marshal(sessionRequest{ID: id, Cancel: true}); err == nil {
+				_, _ = s.stdin.Write(append(cancel, '\n'))
+			}
+		}
 		s.mu.Unlock()
 		return nil, fmt.Errorf("headless %s: %w", pageURL, ctx.Err())
 	}
