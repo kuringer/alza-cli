@@ -191,7 +191,7 @@ Iný názov môžeš nastaviť cez env `ALZA_FAVORITES_LIST`.
 |-------|----------|--------|
 | User info | `/services/restservice.svc/v1/getCommodityLists` | GET |
 | User status | `/api/users/{id}/statusSummary` | GET |
-| Search | `webapi.alza.cz/api/users/{id}/search/whisperer/v1/whisper` | GET |
+| Search (no auth) | `/Services/RestService.svc/v5/search`, fallback `webapi.alza.cz/api/anonymous/search/whisperer/v1/whisper` | POST / GET |
 | Product detail | `/api/router/legacy/catalog/product/{id}?country=SK&electronicContentOnly=False` | GET |
 | Review stats | `webapi.alza.cz/api/catalog/v2/commodities/{id}/reviewStats?country=SK` | GET |
 | Reviews list | `webapi.alza.cz/api/catalog/v2/commodities/{id}/reviews?country=SK` | GET |

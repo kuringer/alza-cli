@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   at once in `browse`) instead of a browser start per page.
 - `savingVsMarket` in deals JSON is rounded to cents.
 
+### Fixed
+- `alza search` no longer needs a login: it calls the public search API
+  without a token, so a missing or expired token does not block it.
+
 ## [0.7.0] - 2026-10-30
 
 ### Fixed

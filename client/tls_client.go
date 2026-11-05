@@ -35,6 +35,26 @@ func NewTLSClient(debug bool) (*TLSClient, error) {
 	}
 	authToken := strings.TrimSpace(string(tokenData))
 
+	c, err := newTLSClient(authToken, debug)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate token by checking user status
+	if err := c.validateToken(); err != nil {
+		return nil, err
+	}
+
+	return c, nil
+}
+
+// NewAnonymousTLSClient creates a client without an auth token, for public
+// endpoints (search) that work without login.
+func NewAnonymousTLSClient(debug bool) (*TLSClient, error) {
+	return newTLSClient("", debug)
+}
+
+func newTLSClient(authToken string, debug bool) (*TLSClient, error) {
 	// Create TLS client with Chrome 120 profile
 	jar := tls_client.NewCookieJar()
 	options := []tls_client.HttpClientOption{
@@ -49,18 +69,11 @@ func NewTLSClient(debug bool) (*TLSClient, error) {
 		return nil, fmt.Errorf("failed to create TLS client: %w", err)
 	}
 
-	c := &TLSClient{
+	return &TLSClient{
 		client:    client,
 		authToken: authToken,
 		debug:     debug,
-	}
-
-	// Validate token by checking user status
-	if err := c.validateToken(); err != nil {
-		return nil, err
-	}
-
-	return c, nil
+	}, nil
 }
 
 func (c *TLSClient) validateToken() error {
@@ -89,7 +102,9 @@ func (c *TLSClient) validateToken() error {
 
 func (c *TLSClient) setHeaders(req *http.Request) {
 	req.Header = baseHeaders()
-	req.Header.Set("Authorization", c.authToken)
+	if c.authToken != "" {
+		req.Header.Set("Authorization", c.authToken)
+	}
 }
 
 // Get performs a GET request

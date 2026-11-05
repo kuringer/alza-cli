@@ -2,6 +2,8 @@ package client
 
 import (
 	"testing"
+
+	http "github.com/bogdanfinn/fhttp"
 )
 
 func TestBaseURLValue(t *testing.T) {
@@ -106,5 +108,23 @@ func TestTLSClientAuthTokenField(t *testing.T) {
 	c := &TLSClient{authToken: "Bearer test123"}
 	if c.authToken != "Bearer test123" {
 		t.Errorf("authToken = %q, want Bearer test123", c.authToken)
+	}
+}
+
+func TestAnonymousClientOmitsAuthorization(t *testing.T) {
+	c, err := NewAnonymousTLSClient(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, _ := http.NewRequest("GET", BaseURL, nil)
+	c.setHeaders(req)
+	if got, ok := req.Header["Authorization"]; ok {
+		t.Errorf("anonymous client sent Authorization header %q", got)
+	}
+
+	c.authToken = "Bearer test123"
+	c.setHeaders(req)
+	if got := req.Header.Get("Authorization"); got != "Bearer test123" {
+		t.Errorf("Authorization = %q, want Bearer test123", got)
 	}
 }

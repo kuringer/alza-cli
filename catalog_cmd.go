@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"github.com/kuringer/alza-cli/client"
 )
 
 // === SEARCH ===
@@ -12,8 +14,14 @@ type SearchCmd struct {
 	Limit int    `help:"Max results to show" default:"10" short:"n"`
 }
 
+// newSearchClient: Alza search endpoints are public, so search needs no token
+// (an expired token must not block it).
+func newSearchClient(g *Globals) (*client.TLSClient, error) {
+	return client.NewAnonymousTLSClient(g.Debug)
+}
+
 func (c *SearchCmd) Run(g *Globals) error {
-	cl, err := newClientWithAutoRefresh(g)
+	cl, err := newSearchClient(g)
 	if err != nil {
 		return err
 	}
